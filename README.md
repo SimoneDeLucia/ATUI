@@ -1,0 +1,141 @@
+# ⚡ AndroidTUI — ADB Terminal User Interface
+
+> **Un gestore file system Android da terminale potente, elegante e reattivo, basato sui comandi ADB e ispirato all'estetica Miller Columns di [pikpaktui](https://github.com/Bengerthelorf/pikpaktui).**
+
+---
+
+## 🌟 Caratteristiche Principali
+
+- 🖥️ **Interfaccia a 3 Colonne (Miller Columns)**:
+  - **Colonna Genitore**: Panoramica della cartella superiore per mantenere sempre l'orientamento spaziale.
+  - **Colonna Attiva**: Lista file navigabile con icone per categoria, indicatori di directory, dimensioni formattate, date e permessi.
+  - **Colonna Anteprima**: Scheda dettagli, metadati completi del file, anteprima del testo in tempo reale per file di codice/config/documenti e scorciatoie per il download.
+- 🔌 **Doppia Modalità di Connessione**:
+  - **USB Debugging**: Rilevamento automatico plug-and-play, gestione stati `device`, `offline` e `unauthorized`.
+  - **Wireless Debugging (Android 11+)**: Supporto completo sia per la connessione diretta (`IP:Porta`) sia per l'accoppiamento con codice a 6 cifre (`adb pair`).
+  - **TCP/IP over USB**: Abilita la modalità wireless sulla porta 5555 con un click se il telefono è inizialmente collegato via cavo.
+- ⚠️ **Dashboard di Disconnessione Intelligente**:
+  - Quando nessun telefono è collegato o il dispositivo è offline, la schermata principale mostra un menù chiaro con opzioni dedicate a USB, Wireless, diagnostica server ADB e modalità Demo.
+- 📥 **Trasferimento File Bidirezionale**:
+  - **Download su PC (`adb pull`)**: Scarica file singoli o intere cartelle dal telefono al computer con conferma del percorso.
+  - **Upload su Telefono (`adb push`)**: Invia file o cartelle dal PC direttamente nella directory corrente del dispositivo Android.
+- 🛠️ **Operazioni File System Complete**:
+  - Crea cartelle (`mkdir -p`)
+  - Rinomina file e cartelle (`mv`)
+  - Elimina in sicurezza con dialogo di conferma (`rm -rf`)
+  - Aggiornamento in tempo reale (`refresh`)
+- 🎮 **Modalità Demo / Simulatore**:
+  - Consente di esplorare e testare tutte le funzionalità e l'estetica della TUI anche senza un telefono collegato fisicamente.
+
+---
+
+## 🎨 Design & Palette Ispirata a PikPakTUI
+
+| Componente | Stile | Ispirazione PikPakTUI |
+| :--- | :--- | :--- |
+| **Sfondo** | `#1a1b26` (Tokyo Night / Slate) | Dark theme ad alto contrasto |
+| **Bordi** | Arrotondati con accento `#7dcfff` (Cyber Cyan) | `BorderType::Rounded` |
+| **Icone File** | 📁 Cartelle, 🖼️ Immagini, 🎬 Video, 🎵 Audio, 🤖 APK, 📄 Documenti, 💻 Codice | Sistema di categorizzazione estensioni |
+| **Barra Superiore** | Badge dispositivo, stato batteria 🔋, spazio libero 💾 e percorso 📱 | Breadcrumbs e barra di stato |
+| **Barra Inferiore** | Scorciatoie da tastiera e notifiche toast (`✓ Successo`, `❌ Errore`) | Feedback rapido non bloccante |
+
+---
+
+## ⌨️ Scorciatoie da Tastiera (Keybindings)
+
+| Tasto | Azione | Descrizione |
+| :---: | :--- | :--- |
+| `j` / `↓` | **Giù** | Sposta il cursore verso il basso nella lista file |
+| `k` / `↑` | **Su** | Sposta il cursore verso l'alto nella lista file |
+| `Enter` / `l` | **Apri** | Entra nella cartella selezionata o apre il download per i file |
+| `Backspace` / `h` | **Genitore** | Torna alla cartella superiore |
+| `d` | **Scarica su PC** | Esegue `adb pull` del file o cartella selezionata sul tuo PC |
+| `u` | **Carica da PC** | Esegue `adb push` di un file dal tuo PC al telefono |
+| `f` | **Nuova Cartella** | Crea una nuova directory sul telefono (`mkdir -p`) |
+| `n` | **Rinomina** | Modifica il nome del file o cartella (`mv`) |
+| `x` | **Elimina** | Elimina l'elemento selezionato con finestra di conferma |
+| `c` | **Dispositivi** | Apre il menu di selezione e gestione dispositivi ADB |
+| `r` | **Ricarica** | Aggiorna la vista e riscatta i file da ADB |
+| `?` | **Aiuto** | Mostra la finestra di aiuto e comandi |
+| `q` | **Esci** | Chiude AndroidTUI |
+
+---
+
+## 🚀 Requisiti e Installazione
+
+### 1. Prerequisiti
+- **Python 3.10+** installato sul sistema.
+- **Android Debug Bridge (`adb`)**:
+  - Incluso con Android Studio oppure scaricabile separatamente come [SDK Platform Tools](https://developer.android.com/tools/releases/platform-tools).
+  - Su Windows, AndroidTUI cerca automaticamente `adb.exe` in `C:\platform-tools\`, nel PATH di sistema e nelle cartelle standard.
+
+### 2. Installazione delle dipendenze
+Dalla cartella del progetto:
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Avvio Globale da Qualsiasi Terminale
+L'applicazione è configurata nel `$PATH` di sistema e si avvia direttamente con il comando:
+```bash
+atui
+```
+
+Opzioni disponibili da riga di comando:
+```bash
+# Avvio standard
+atui
+
+# Avvio diretto in modalità demo / test
+atui --demo
+
+# Specificare un percorso ADB alternativo
+atui --adb-path "C:\tuo-percorso\adb.exe"
+
+# Mostra aiuto e opzioni
+atui --help
+```
+
+---
+
+## 📱 Guida alla Connessione
+
+### Modalità 1: Cavo USB
+1. Sul tuo smartphone Android, vai in **Impostazioni > Info sul telefono** e tocca **Numero build** 7 volte per attivare le *Opzioni sviluppatore*.
+2. Vai in **Impostazioni > Sistema > Opzioni sviluppatore** e attiva **Debug USB**.
+3. Collega il telefono al PC con cavo USB.
+4. Quando sul display del telefono compare il messaggio **"Consenti debug USB da questo computer?"**, seleziona la spunta e premi **Consenti**.
+5. In AndroidTUI, premi `[Cerca Dispositivi USB]` (o premi `r` per ricaricare).
+
+### Modalità 2: Wireless Debugging (Android 11+)
+1. Collega smartphone e PC alla **stessa rete Wi-Fi**.
+2. Nelle *Opzioni sviluppatore*, attiva **Debug wireless** ed entra nel menu.
+3. Se è la prima volta:
+   - Seleziona **Accoppia dispositivo con codice di accoppiamento**.
+   - In AndroidTUI clicca su `[Accoppia (Pair)]`, inserisci l'indirizzo IP:Porta e il codice a 6 cifre mostrato sul telefono.
+4. Per connetterti:
+   - Inserisci l'indirizzo IP e la porta principale visualizzati nella schermata Debug wireless e clicca su `[Connetti IP:Porta]`.
+
+---
+
+## 📁 Struttura del Progetto
+
+```
+AndroidTUI/
+├── android_tui/
+│   ├── __init__.py           # Info pacchetto e versione
+│   ├── adb.py                # Wrapper motore ADB (comandi, parser ls/stat, pairing/connect)
+│   ├── models.py             # Modelli dati (AdbDevice, FileEntry, stati)
+│   ├── theme.py              # Palette colori, icone estensioni e foglio di stile CSS
+│   ├── views/
+│   │   ├── __init__.py
+│   │   ├── header.py         # Barra superiore con badge dispositivo, batteria e breadcrumb
+│   │   ├── footer.py         # Barra inferiore scorciatoie e notifiche toast
+│   │   ├── disconnected.py   # Dashboard interattiva per connessione USB e Wireless
+│   │   ├── browser.py        # Miller Columns 3-pane file manager
+│   │   └── modals.py         # Finestre modali (WiFi, download, upload, elimina, aiuto)
+│   └── app.py                # Applicazione principale Textual & worker asincroni
+├── main.py                   # Script di avvio con argomenti CLI
+├── requirements.txt          # Dipendenze Python (textual, rich)
+└── README.md                 # Documentazione del progetto
+```

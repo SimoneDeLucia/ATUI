@@ -1,0 +1,4 @@
+[console_scripts]
+android-tui = android_tui.app:main
+androidtui = android_tui.app:main
+atui = android_tui.app:main
