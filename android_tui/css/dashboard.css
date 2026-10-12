@@ -2,9 +2,11 @@
 #disconnected-container {
     height: 1fr;
     align-horizontal: center;
-    padding: 1 2;
+    padding: 0 1;
     overflow-y: auto;
     overflow-x: hidden;
+    scrollbar-size-vertical: 1;
+    scrollbar-color: #7dcfff #1a1b26;
 }
 
 #disconnected-hero {
@@ -13,8 +15,8 @@
     height: auto;
     border: round #7dcfff;
     background: #1f2335;
-    padding: 1 2;
-    margin-bottom: 2;
+    padding: 0 1;
+    margin-bottom: 1;
 }
 
 #hero-title {
@@ -27,22 +29,25 @@
 #hero-subtitle {
     text-align: center;
     color: #f7768e;
-    margin-bottom: 1;
+    margin-bottom: 0;
 }
 
 .connection-options-grid {
     layout: horizontal;
     height: auto;
-    margin-top: 1;
-    margin-bottom: 1;
+    margin-top: 0;
+    margin-bottom: 0;
 }
 
 #row-recent {
     margin-top: 0;
+    height: auto;
 }
 
 #row-tools {
     margin-top: 0;
+    height: auto;
+    margin-bottom: 1;
 }
 
 .option-card {
@@ -50,7 +55,7 @@
     height: auto;
     border: round #414868;
     background: #24283b;
-    padding: 1;
+    padding: 0 1;
     margin: 0 1;
 }
 
@@ -62,19 +67,35 @@
 .card-title {
     text-style: bold;
     color: #73daca;
-    margin-bottom: 1;
+    margin-bottom: 0;
 }
 
 .card-desc {
     color: #9aa5ce;
-    margin-bottom: 1;
+    margin-bottom: 0;
     height: auto;
+}
+
+/* Recent Devices: Adaptive height & scrollable */
+#card-recent {
+    height: auto;
+}
+
+#recent-devices-list {
+    height: auto;
+    max-height: 8;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-size-vertical: 1;
+    scrollbar-color: #7dcfff #24283b;
+    margin-top: 0;
+    margin-bottom: 0;
 }
 
 .recent-device-row {
     layout: horizontal;
     height: 3;
-    margin-bottom: 1;
+    margin-bottom: 0;
     align: left middle;
 }
 
@@ -113,7 +134,7 @@
     layout: horizontal;
     align: center middle;
     height: 3;
-    margin-top: 1;
+    margin-top: 0;
 }
 
 .card-button-bar Button {
@@ -126,7 +147,7 @@
     layout: horizontal;
     align: right middle;
     height: 3;
-    margin-top: 1;
+    margin-top: 0;
 }
 
 #recent-actions-bar Button {
@@ -139,4 +160,21 @@
 #recent-actions-bar Button:hover {
     background: #f7768e;
     color: #ffffff;
+}
+
+/* ADB Debug & Diagnostics Section */
+#card-tools {
+    border: round #bb9af7;
+    background: #24283b;
+    height: auto;
+}
+
+#card-tools:hover {
+    border: round #7dcfff;
+    background: #292e42;
+}
+
+#card-tools-title {
+    color: #bb9af7;
+    text-style: bold;
 }

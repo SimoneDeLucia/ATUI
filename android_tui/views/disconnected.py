@@ -5,14 +5,14 @@ Provides interactive options for USB debugging, remembered Wireless devices with
 manual IP:Port / pairing, and ADB server diagnostics with complete i18n support.
 """
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import VerticalScroll, Horizontal, Vertical
 from textual.widgets import Static, Button
 
 from ..device_store import load_remembered_devices
 from ..i18n import t
 
 
-class DisconnectedDashboard(Container):
+class DisconnectedDashboard(VerticalScroll):
     """Interactive dashboard displaying USB and Wireless connection options, separate recent devices section, and ADB tools."""
 
     def __init__(self, **kwargs):
@@ -48,7 +48,7 @@ class DisconnectedDashboard(Container):
                     yield Static(t("dash_card_recent_desc"), id="card-recent-desc", classes="card-desc")
                     remembered = load_remembered_devices()
                     if remembered:
-                        with Vertical(id="recent-devices-list"):
+                        with VerticalScroll(id="recent-devices-list"):
                             for idx, dev in enumerate(remembered):
                                 name = dev.get("name") or "Android Device"
                                 dev_type = dev.get("type", "wireless")
