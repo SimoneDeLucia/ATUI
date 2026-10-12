@@ -58,35 +58,17 @@ class FileTable(DataTable):
                     row_key = str(self.ordered_rows[row_idx].key.value)
                 self.post_message(self.CheckboxToggled(row_index=row_idx, row_key=row_key))
                 event.stop()
+                event.prevent_default()
                 return
             elif row_idx == -1:
                 self.post_message(self.SelectAllToggled())
                 event.stop()
+                event.prevent_default()
                 return
 
-        # Header clicks on columns: Sort by Name, Size, Type, Date, Perms
+        # Header clicks on columns (row_idx == -1):
+        # Allow DataTable._on_click to dispatch HeaderSelected cleanly without duplicate direct sorting
         if row_idx == -1:
-            if col_idx == 1 and hasattr(self.app, "sort_directory"):
-                self.app.sort_directory("name")
-                event.stop()
-                return
-            elif col_idx == 2 and hasattr(self.app, "sort_directory"):
-                self.app.sort_directory("size")
-                event.stop()
-                return
-            elif col_idx == 3 and hasattr(self.app, "sort_directory"):
-                self.app.sort_directory("type")
-                event.stop()
-                return
-            elif col_idx == 4 and hasattr(self.app, "sort_directory"):
-                self.app.sort_directory("modified")
-                event.stop()
-                return
-            elif col_idx == 5 and hasattr(self.app, "sort_directory"):
-                self.app.sort_directory("perms")
-                event.stop()
-                return
-            await super()._on_click(event)
             return
 
         # Data rows: Single click highlights & previews, Double click opens!
@@ -104,6 +86,7 @@ class FileTable(DataTable):
             if is_double:
                 self.post_message(self.FileDoubleClicked(row_index=row_idx))
             event.stop()
+            event.prevent_default()
             return
 
         await super()._on_click(event)
@@ -170,12 +153,20 @@ class BrowserView(Horizontal):
         for label, width in self._get_column_labels(self.sort_by, self.sort_reverse):
             table.add_column(label, width=width)
 
-    def update_columns(self, sort_by: str = "name", sort_reverse: bool = False, col_widths: Optional[dict] = None) -> None:
+    def update_columns(
+        self,
+        sort_by: str = "name",
+        sort_reverse: bool = False,
+        col_widths: Optional[dict] = None,
+        current_entries: Optional[List[FileEntry]] = None,
+    ) -> None:
         """Updates column headers with sort arrow indicators and explicit column widths."""
         self.sort_by = sort_by
         self.sort_reverse = sort_reverse
         if col_widths:
             self.col_widths.update(col_widths)
+        if current_entries is not None:
+            self.current_entries = current_entries
         table = self.query_one("#current-table", FileTable)
         table.clear(columns=True)
         for label, width in self._get_column_labels(sort_by, sort_reverse):

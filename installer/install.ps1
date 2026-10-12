@@ -85,7 +85,7 @@ try {
                 throw "File scaricato non valido (dimensione anomala: $($msiItem.Length) byte)"
             }
 
-            Write-Host "[✓] Download completato: $localMsiPath ($([math]::Round($msiItem.Length / 1KB, 1)) KB)" -ForegroundColor Green
+            Write-Host "[OK] Download completato: $localMsiPath ($([math]::Round($msiItem.Length / 1KB, 1)) KB)" -ForegroundColor Green
 
             Write-Host "[*] Avvio installazione di ATUI tramite Windows Installer (msiexec)..." -ForegroundColor Yellow
 
@@ -97,7 +97,7 @@ try {
 
             $proc = Start-Process -FilePath "msiexec.exe" -ArgumentList $msiArgs -Wait -PassThru
             if ($proc.ExitCode -eq 0) {
-                Write-Host "[✓] Windows Installer completato con successo (Exit Code: 0)." -ForegroundColor Green
+                Write-Host "[OK] Windows Installer completato con successo (Exit Code: 0)." -ForegroundColor Green
                 $installedViaMsi = $true
             } else {
                 Write-Host "[!] L'installer ha restituito il codice di uscita: $($proc.ExitCode)" -ForegroundColor Yellow
@@ -124,7 +124,7 @@ try {
             Write-Host "[*] Installazione pacchetto ATUI da GitHub..." -ForegroundColor Yellow
             & $pythonCmd.Source -m pip install --upgrade "git+https://github.com/SimoneDeLucia/ATUI.git"
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "[✓] Installazione completata con successo tramite pip!" -ForegroundColor Green
+                Write-Host "[OK] Installazione completata con successo tramite pip!" -ForegroundColor Green
             } else {
                 Write-Host "[!] Errore durante l'installazione pip." -ForegroundColor Red
             }
@@ -143,7 +143,7 @@ try {
     # Verifica ADB
     $adbCmd = Get-Command adb -ErrorAction SilentlyContinue
     if ($adbCmd) {
-        Write-Host " [✓] Android Debug Bridge (ADB): Trovato ($($adbCmd.Source))" -ForegroundColor Green
+        Write-Host " [OK] Android Debug Bridge (ADB): Trovato ($($adbCmd.Source))" -ForegroundColor Green
     } else {
         Write-Host " [i] Android Debug Bridge (ADB): Non nel PATH di sistema." -ForegroundColor Yellow
         Write-Host "     (L'installer MSI include i binari Google ADB in Program Files/AndroidTUI/platform-tools)" -ForegroundColor Gray
@@ -152,7 +152,7 @@ try {
     # Verifica Scrcpy
     $scrcpyCmd = Get-Command scrcpy -ErrorAction SilentlyContinue
     if ($scrcpyCmd) {
-        Write-Host " [✓] Scrcpy (Screen Mirroring): Rilevato ($($scrcpyCmd.Source))" -ForegroundColor Green
+        Write-Host " [OK] Scrcpy (Screen Mirroring): Rilevato ($($scrcpyCmd.Source))" -ForegroundColor Green
     } else {
         Write-Host " [i] Scrcpy (Screen Mirroring): Non rilevato." -ForegroundColor Yellow
         Write-Host "     Per abilitare la condivisione dello schermo con Scrcpy, installalo tramite:" -ForegroundColor Gray

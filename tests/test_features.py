@@ -321,7 +321,33 @@ async def run_compatibility_suite():
         print("[21] Testing Double Click vs Single Click FileTable logic...")
         assert hasattr(FileTable, "FileDoubleClicked")
         assert hasattr(app, "on_file_table_file_double_clicked")
-        print("    FileTable double click event and application handler verified!")
+
+        app.adb.set_active_device(dev)
+        app.sync_views()
+        app.load_directory("/sdcard")
+        for _ in range(5):
+            await pilot.pause()
+
+        opened_files = []
+        original_open_file = app.action_open_file
+        app.action_open_file = lambda entry: opened_files.append(entry.name)
+        try:
+            file_row_idx = next(i for i, e in enumerate(app.active_entries) if not e.is_dir)
+            table_y = file_row_idx + 1
+            table = app.query_one(FileTable)
+
+            # Single click file row: must NOT open file
+            await pilot.click(table, offset=(10, table_y))
+            await pilot.pause()
+            assert len(opened_files) == 0, f"Single click opened file unexpectedly: {opened_files}"
+
+            # Double click file row: MUST open file
+            await pilot.click(table, offset=(10, table_y))
+            await pilot.pause()
+            assert len(opened_files) == 1, f"Double click failed to open file: {opened_files}"
+            print("    Single click only selects/highlights; double click reliably opens file!")
+        finally:
+            app.action_open_file = original_open_file
 
         # 22. Test Raylib-Go Accelerated Thumbnail Engine
         print("[22] Testing Raylib-Go Accelerated Thumbnail Engine...")
@@ -344,6 +370,36 @@ async def run_compatibility_suite():
         finally:
             if test_img_path.exists():
                 test_img_path.unlink()
+
+        # 23. Test Temporary Download Move and PC Cleanup Logic
+        print("[23] Testing Temporary Download Move & Cleanup...")
+        import tempfile
+        import shutil
+        test_dest_dir = Path(tempfile.gettempdir()) / "atui_test_dest"
+        test_dest_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            # Test pull worker in demo mode
+            app._do_pull_worker("/sdcard/device_info.json", str(test_dest_dir))
+            await pilot.pause(0.2)
+            dest_file = test_dest_dir / "device_info.json"
+            assert dest_file.exists(), "Downloaded file was not moved to destination!"
+            print("    File downloaded to temp and moved to destination path verified!")
+        finally:
+            if test_dest_dir.exists():
+                shutil.rmtree(test_dest_dir, ignore_errors=True)
+
+        # 24. Test PowerShell Installer Build Script Syntax
+        print("[24] Testing PowerShell installer scripts parser compatibility...")
+        import subprocess
+        ps_cmd = (
+            "& { param($p) $e = $null; "
+            "[System.Management.Automation.Language.Parser]::ParseFile($p, [ref]$null, [ref]$e); "
+            "if ($e.Count -eq 0) { Write-Host 'NO_SYNTAX_ERRORS' } else { exit 1 } }"
+        )
+        for ps_script in ["installer/build_installer.ps1", "installer/install.ps1"]:
+            res = subprocess.run(["powershell", "-Command", ps_cmd, "-p", ps_script], capture_output=True, text=True)
+            assert "NO_SYNTAX_ERRORS" in res.stdout, f"PowerShell syntax error in {ps_script}: {res.stderr}"
+        print("    PowerShell 5.1 build_installer.ps1 and install.ps1 parsed with 0 errors!")
 
         print("\n[SUCCESS] ALL INTEGRATION TESTS (ALL REQUIREMENTS) PASSED 100%!")
 

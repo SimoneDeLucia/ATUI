@@ -148,6 +148,21 @@ class AndroidTuiApp(App):
         self._stability_timer = self.set_interval(4.0, self.check_connection_stability)
         self.scan_and_auto_connect()
 
+    def on_unmount(self) -> None:
+        """Cleans up temporary preview and download caches from disk on exit."""
+        import tempfile
+        import shutil
+        cache_dirs = [
+            Path(tempfile.gettempdir()) / "atui_preview_cache",
+            Path(tempfile.gettempdir()) / "atui_download_cache",
+        ]
+        for cd in cache_dirs:
+            if cd.exists():
+                try:
+                    shutil.rmtree(cd, ignore_errors=True)
+                except Exception:
+                    pass
+
     # -------------------------------------------------------------
     # State synchronization & UI toggles
     # -------------------------------------------------------------
@@ -379,16 +394,19 @@ class AndroidTuiApp(App):
             files.sort(key=lambda x: x.name.lower(), reverse=reverse)
         elif sort_by == "size":
             dirs.sort(key=lambda x: x.name.lower(), reverse=reverse)
-            files.sort(key=lambda x: x.size, reverse=reverse)
+            files.sort(key=lambda x: (x.size, x.name.lower()), reverse=reverse)
         elif sort_by == "type":
             dirs.sort(key=lambda x: x.name.lower(), reverse=reverse)
             files.sort(key=lambda x: (x.category.value, x.extension.lower(), x.name.lower()), reverse=reverse)
         elif sort_by in ("modified", "date"):
-            dirs.sort(key=lambda x: x.date_str or "", reverse=reverse)
-            files.sort(key=lambda x: x.date_str or "", reverse=reverse)
+            dirs.sort(key=lambda x: (x.date_str or "", x.name.lower()), reverse=reverse)
+            files.sort(key=lambda x: (x.date_str or "", x.name.lower()), reverse=reverse)
         elif sort_by in ("perms", "permissions"):
-            dirs.sort(key=lambda x: x.permissions or "", reverse=reverse)
-            files.sort(key=lambda x: x.permissions or "", reverse=reverse)
+            dirs.sort(key=lambda x: (x.permissions or "", x.name.lower()), reverse=reverse)
+            files.sort(key=lambda x: (x.permissions or "", x.name.lower()), reverse=reverse)
+        else:
+            dirs.sort(key=lambda x: x.name.lower(), reverse=reverse)
+            files.sort(key=lambda x: x.name.lower(), reverse=reverse)
 
         return dirs + files
 
@@ -403,7 +421,7 @@ class AndroidTuiApp(App):
         self._save_browser_settings()
         self.active_entries = self._sort_entries(self.active_entries, self.sort_by, self.sort_reverse)
         browser = self.query_one(BrowserView)
-        browser.update_columns(self.sort_by, self.sort_reverse)
+        browser.update_columns(self.sort_by, self.sort_reverse, current_entries=self.active_entries)
 
         col_name = t(f"col_{self.sort_by}") if f"col_{self.sort_by}" in ("col_name", "col_size", "col_type", "col_modified", "col_perms") else self.sort_by
         order_name = t("order_desc") if self.sort_reverse else t("order_asc")
@@ -421,9 +439,9 @@ class AndroidTuiApp(App):
         self._save_browser_settings()
         self.active_entries = self._sort_entries(self.active_entries, self.sort_by, self.sort_reverse)
         browser = self.query_one(BrowserView)
-        browser.update_columns(self.sort_by, self.sort_reverse)
+        browser.update_columns(self.sort_by, self.sort_reverse, current_entries=self.active_entries)
         order_name = t("order_desc") if self.sort_reverse else t("order_asc")
-        col_name = t(f"col_{self.sort_by}")
+        col_name = t(f"col_{self.sort_by}") if f"col_{self.sort_by}" in ("col_name", "col_size", "col_type", "col_modified", "col_perms") else self.sort_by
         self.query_one(FooterBar).show_toast(t("sorted_by", col=col_name, order=order_name))
 
     def action_show_sort_modal(self) -> None:
@@ -526,9 +544,8 @@ class AndroidTuiApp(App):
 
     @work(thread=True)
     def _do_open_file_worker(self, entry: FileEntry) -> None:
-        """Pulls file to a local temp cache directory, launches OS default viewer, and deletes on exit."""
+        """Pulls file to a local temp cache directory and opens directly with OS default viewer."""
         import tempfile
-        import time
         import shutil
 
         self.app.call_from_thread(
@@ -547,33 +564,17 @@ class AndroidTuiApp(App):
 
         if success and local_target.exists():
             try:
-                proc = None
                 if sys.platform == "win32":
-                    proc = subprocess.Popen(["cmd", "/c", f'start "" /wait "{local_target}"'], shell=True)
+                    os.startfile(str(local_target))
                 elif sys.platform == "darwin":
-                    proc = subprocess.Popen(["open", "-W", str(local_target)])
+                    subprocess.Popen(["open", str(local_target)])
                 else:
-                    proc = subprocess.Popen(["xdg-open", str(local_target)])
+                    subprocess.Popen(["xdg-open", str(local_target)])
 
                 self.app.call_from_thread(
                     self.query_one(FooterBar).show_toast,
                     t("opened_file", name=entry.name)
                 )
-
-                if proc:
-                    proc.wait()
-
-                # Remove temporary preview file once viewer process closes
-                for _ in range(15):
-                    try:
-                        if local_target.exists():
-                            if local_target.is_file():
-                                local_target.unlink()
-                            elif local_target.is_dir():
-                                shutil.rmtree(local_target, ignore_errors=True)
-                        break
-                    except Exception:
-                        time.sleep(1.0)
             except Exception as e:
                 self.app.call_from_thread(
                     self.query_one(FooterBar).show_toast,
@@ -581,6 +582,11 @@ class AndroidTuiApp(App):
                     True
                 )
         else:
+            if local_target.exists():
+                try:
+                    local_target.unlink()
+                except Exception:
+                    pass
             self.app.call_from_thread(
                 self.query_one(FooterBar).show_toast,
                 t("toast_open_error", msg=str(msg)),
@@ -792,19 +798,47 @@ class AndroidTuiApp(App):
 
     @work(thread=True)
     def _do_pull_worker(self, remote_path: str, pc_dest_dir: str) -> None:
+        import tempfile
+        import shutil
         fname = os.path.basename(remote_path)
         self.app.call_from_thread(
             self.query_one(FooterBar).start_progress,
             1.0,
             t("toast_dl_progress", name=fname),
         )
-        success, msg = self.adb.pull_file(remote_path, pc_dest_dir)
+        temp_dir = Path(tempfile.gettempdir()) / "atui_download_cache"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        temp_file = temp_dir / fname
+
+        success, msg = self.adb.pull_file(remote_path, str(temp_file))
         self.app.call_from_thread(self.query_one(FooterBar).update_progress, 1.0)
         self.app.call_from_thread(self.query_one(FooterBar).finish_progress)
-        self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, not success)
+
+        if success and temp_file.exists():
+            try:
+                os.makedirs(pc_dest_dir, exist_ok=True)
+                dest_path = os.path.join(pc_dest_dir, fname)
+                shutil.move(str(temp_file), dest_path)
+                self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, False)
+            except Exception as e:
+                if temp_file.exists():
+                    try:
+                        temp_file.unlink()
+                    except Exception:
+                        pass
+                self.app.call_from_thread(self.query_one(FooterBar).show_toast, f"Errore spostamento file: {e}", True)
+        else:
+            if temp_file.exists():
+                try:
+                    temp_file.unlink()
+                except Exception:
+                    pass
+            self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, True)
 
     @work(thread=True)
     def _do_batch_pull_worker(self, entries: List[FileEntry], pc_dest_dir: str) -> None:
+        import tempfile
+        import shutil
         total = len(entries)
         success_count = 0
         self.app.call_from_thread(
@@ -812,14 +846,34 @@ class AndroidTuiApp(App):
             float(total),
             t("toast_dl_batch_start", total=total),
         )
+        temp_dir = Path(tempfile.gettempdir()) / "atui_download_cache"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        os.makedirs(pc_dest_dir, exist_ok=True)
+
         for idx, entry in enumerate(entries, 1):
             self.app.call_from_thread(
                 self.query_one(FooterBar).show_toast,
                 t("toast_dl_batch_progress", idx=idx, total=total, name=entry.name),
             )
-            success, _ = self.adb.pull_file(entry.path, pc_dest_dir)
-            if success:
-                success_count += 1
+            temp_file = temp_dir / entry.name
+            success, _ = self.adb.pull_file(entry.path, str(temp_file))
+            if success and temp_file.exists():
+                try:
+                    dest_path = os.path.join(pc_dest_dir, entry.name)
+                    shutil.move(str(temp_file), dest_path)
+                    success_count += 1
+                except Exception:
+                    if temp_file.exists():
+                        try:
+                            temp_file.unlink()
+                        except Exception:
+                            pass
+            else:
+                if temp_file.exists():
+                    try:
+                        temp_file.unlink()
+                    except Exception:
+                        pass
             self.app.call_from_thread(self.query_one(FooterBar).update_progress, 1.0)
 
         self.app.call_from_thread(self.query_one(FooterBar).finish_progress)

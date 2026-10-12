@@ -62,9 +62,9 @@ $usbDriverUrl = "https://dl.google.com/android/repository/usb_driver_r13-windows
 if (-not (Test-Path $usbDriverZip) -and -not $SkipDownload) {
     Write-Host "[*] Download Google USB Driver da Google ($usbDriverUrl)..." -ForegroundColor Yellow
     Invoke-WebRequest -Uri $usbDriverUrl -OutFile $usbDriverZip -UseBasicParsing
-    Write-Host "[✓] Google USB Driver scaricato con successo." -ForegroundColor Green
+    Write-Host "[OK] Google USB Driver scaricato con successo." -ForegroundColor Green
 } elseif (Test-Path $usbDriverZip) {
-    Write-Host "[✓] Archivio Google USB Driver già presente in cache." -ForegroundColor Green
+    Write-Host "[OK] Archivio Google USB Driver gia presente in cache." -ForegroundColor Green
 }
 
 # 4. Estrazione driver
@@ -75,7 +75,7 @@ if (Test-Path $usbDriverZip) {
     Write-Host "[*] Estrazione driver USB in staging..." -ForegroundColor Yellow
     Expand-Archive -Path $usbDriverZip -DestinationPath $driversStaging -Force
     Copy-Item (Join-Path $ScriptDir "install_driver.cmd") -Destination $driversStaging -Force
-    Write-Host "[✓] Driver estratti in: $driversStaging" -ForegroundColor Green
+    Write-Host "[OK] Driver estratti in: $driversStaging" -ForegroundColor Green
 }
 
 # 5. Download Google Platform Tools (ADB)
@@ -85,9 +85,9 @@ $platformToolsUrl = "https://dl.google.com/android/repository/platform-tools-lat
 if (-not (Test-Path $platformToolsZip) -and -not $SkipDownload) {
     Write-Host "[*] Download Google Platform-Tools ($platformToolsUrl)..." -ForegroundColor Yellow
     Invoke-WebRequest -Uri $platformToolsUrl -OutFile $platformToolsZip -UseBasicParsing
-    Write-Host "[✓] Google Platform-Tools scaricati con successo." -ForegroundColor Green
+    Write-Host "[OK] Google Platform-Tools scaricati con successo." -ForegroundColor Green
 } elseif (Test-Path $platformToolsZip) {
-    Write-Host "[✓] Archivio Platform-Tools già presente in cache." -ForegroundColor Green
+    Write-Host "[OK] Archivio Platform-Tools gia presente in cache." -ForegroundColor Green
 }
 
 $toolsStaging = Join-Path $StagingDir "platform-tools"
@@ -109,9 +109,9 @@ if ($IncludeScrcpy) {
         try {
             Invoke-WebRequest -Uri $scrcpyUrl -OutFile $scrcpyZip -UseBasicParsing
             Expand-Archive -Path $scrcpyZip -DestinationPath $scrcpyStaging -Force
-            Write-Host "[✓] Scrcpy integrato nello staging di installazione." -ForegroundColor Green
+            Write-Host "[OK] Scrcpy integrato nello staging di installazione." -ForegroundColor Green
         } catch {
-            Write-Host "[!] Impossibile scaricare Scrcpy automaticamente. Verrà escluso." -ForegroundColor Yellow
+            Write-Host "[!] Impossibile scaricare Scrcpy automaticamente. Verra escluso." -ForegroundColor Yellow
         }
     }
 } else {
@@ -137,7 +137,7 @@ Copy-Item (Join-Path $RootDir "pyproject.toml") -Destination $appStaging -Force
 Copy-Item (Join-Path $RootDir "README.md") -Destination $appStaging -Force
 Copy-Item (Join-Path $RootDir "android_tui") -Destination $appStaging -Recurse -Force
 
-Write-Host "[✓] File applicativi pronti per l'impacchettamento." -ForegroundColor Green
+Write-Host "[OK] File applicativi pronti per l'impacchettamento." -ForegroundColor Green
 
 # 7. Compilazione Installer MSI
 Write-Host "[*] Compilazione pacchetto Windows Installer (.msi)..." -ForegroundColor Yellow
