@@ -42,7 +42,7 @@ from .views.modals import (
     ScrcpyModal,
     SortModal,
 )
-from .i18n import t, toggle_language, get_current_language
+from .i18n import t, toggle_language, get_current_language, get_language_name
 
 
 class AndroidTuiApp(App):
@@ -214,7 +214,7 @@ class AndroidTuiApp(App):
 
     def _on_device_connected(self, device: AdbDevice) -> None:
         self.sync_views()
-        self.query_one(FooterBar).show_toast(f"Connesso a {device.display_name}")
+        self.query_one(FooterBar).show_toast(t("connected_to", name=device.display_name))
         # Remember device in persistent storage
         if device.connection_type == ConnectionType.WIRELESS:
             save_remembered_device(device.serial, device.display_name, "wireless")
@@ -225,9 +225,9 @@ class AndroidTuiApp(App):
     def _on_device_unready(self, device: AdbDevice) -> None:
         self.sync_views()
         if device.state == DeviceState.UNAUTHORIZED:
-            self.query_one(FooterBar).show_toast(f"Dispositivo non autorizzato: accetta RSA sullo schermo del telefono", is_error=True)
+            self.query_one(FooterBar).show_toast(t("device_unauthorized"), is_error=True)
         elif device.state == DeviceState.OFFLINE:
-            self.query_one(FooterBar).show_toast(f"Dispositivo offline: ricollega cavo o riavvia ADB", is_error=True)
+            self.query_one(FooterBar).show_toast(t("device_offline"), is_error=True)
 
     @work(thread=True)
     def load_directory(self, path: str) -> None:
@@ -267,7 +267,7 @@ class AndroidTuiApp(App):
         browser.update_browser(current_path, entries, parent_path, parent_entries, self.selected_paths)
         self.query_one(HeaderBar).update_state(self.adb.active_device, current_path)
         self.query_one(FooterBar).update_batch_selection(0, "")
-        self.query_one(FooterBar).show_toast(f"{len(entries)} elementi caricati")
+        self.query_one(FooterBar).show_toast(t("items_loaded", count=len(entries)))
 
         # Load preview for first item if applicable (supports all file categories!)
         if entries and not entries[0].is_dir:
@@ -446,7 +446,7 @@ class AndroidTuiApp(App):
             if widths:
                 browser.update_columns(self.sort_by, self.sort_reverse, col_widths=widths)
                 self._save_browser_settings()
-                self.query_one(FooterBar).show_toast("Larghezze colonne aggiornate.")
+                self.query_one(FooterBar).show_toast(t("toast_col_widths_updated"))
 
         self.push_screen(ColumnWidthsModal(current_widths=browser.col_widths), on_widths_result)
 
@@ -457,7 +457,7 @@ class AndroidTuiApp(App):
         """Launches scrcpy to mirror Android device screen in real time."""
         device = self.adb.active_device
         if not device or device.state != DeviceState.DEVICE:
-            self.query_one(FooterBar).show_toast("Nessun dispositivo pronto per Scrcpy", is_error=True)
+            self.query_one(FooterBar).show_toast(t("toast_scrcpy_no_device"), is_error=True)
             return
 
         if self.adb.demo_mode:
@@ -483,7 +483,7 @@ class AndroidTuiApp(App):
             )
             self.query_one(FooterBar).show_toast(t("scrcpy_launched", name=device.display_name))
         except Exception as e:
-            self.query_one(FooterBar).show_toast(f"Errore avvio Scrcpy: {e}", is_error=True)
+            self.query_one(FooterBar).show_toast(t("toast_scrcpy_error", err=str(e)), is_error=True)
 
 
     def action_enter_selected(self) -> None:
@@ -577,13 +577,13 @@ class AndroidTuiApp(App):
             except Exception as e:
                 self.app.call_from_thread(
                     self.query_one(FooterBar).show_toast,
-                    f"Errore avvio app di sistema: {e}",
+                    t("toast_open_file_error", err=str(e)),
                     True
                 )
         else:
             self.app.call_from_thread(
                 self.query_one(FooterBar).show_toast,
-                f"Errore apertura: {msg}",
+                t("toast_open_error", msg=str(msg)),
                 True
             )
 
@@ -606,7 +606,7 @@ class AndroidTuiApp(App):
     def action_refresh_view(self) -> None:
         if self.adb.active_device:
             self.load_directory(self.current_path)
-            self.query_one(FooterBar).show_toast("Ricaricato.")
+            self.query_one(FooterBar).show_toast(t("refreshed"))
         else:
             self.scan_and_auto_connect()
 
@@ -646,7 +646,7 @@ class AndroidTuiApp(App):
         self.selected_paths.clear()
         self.selected_entries.clear()
         self._refresh_selection_state(preserve_cursor=True)
-        self.query_one(FooterBar).show_toast("Selezione annullata.")
+        self.query_one(FooterBar).show_toast(t("selection_cleared"))
 
     def _refresh_selection_state(self, preserve_cursor: bool = True) -> None:
         browser = self.query_one(BrowserView)
@@ -694,7 +694,7 @@ class AndroidTuiApp(App):
             self.app.call_from_thread(self._on_connection_lost)
 
     def _on_connection_lost(self) -> None:
-        self.query_one(FooterBar).show_toast("Connessione col dispositivo persa!", is_error=True)
+        self.query_one(FooterBar).show_toast(t("conn_lost"), is_error=True)
         self.adb.set_active_device(None)
         self.sync_views()
 
@@ -715,7 +715,7 @@ class AndroidTuiApp(App):
         else:
             entry = self.get_selected_entry()
             if not entry:
-                self.query_one(FooterBar).show_toast("Nessun file selezionato per il download", is_error=True)
+                self.query_one(FooterBar).show_toast(t("toast_no_file_dl"), is_error=True)
                 return
             entries = [entry]
 
@@ -796,7 +796,7 @@ class AndroidTuiApp(App):
         self.app.call_from_thread(
             self.query_one(FooterBar).start_progress,
             1.0,
-            f"Download in corso: {fname}...",
+            t("toast_dl_progress", name=fname),
         )
         success, msg = self.adb.pull_file(remote_path, pc_dest_dir)
         self.app.call_from_thread(self.query_one(FooterBar).update_progress, 1.0)
@@ -810,12 +810,12 @@ class AndroidTuiApp(App):
         self.app.call_from_thread(
             self.query_one(FooterBar).start_progress,
             float(total),
-            f"Download batch (0/{total})...",
+            t("toast_dl_batch_start", total=total),
         )
         for idx, entry in enumerate(entries, 1):
             self.app.call_from_thread(
                 self.query_one(FooterBar).show_toast,
-                f"Download batch ({idx}/{total}): {entry.name}...",
+                t("toast_dl_batch_progress", idx=idx, total=total, name=entry.name),
             )
             success, _ = self.adb.pull_file(entry.path, pc_dest_dir)
             if success:
@@ -823,7 +823,7 @@ class AndroidTuiApp(App):
             self.app.call_from_thread(self.query_one(FooterBar).update_progress, 1.0)
 
         self.app.call_from_thread(self.query_one(FooterBar).finish_progress)
-        msg = f"Download batch completato: {success_count}/{total} file scaricati in {pc_dest_dir}"
+        msg = t("toast_dl_batch_complete", count=success_count, total=total, dest=pc_dest_dir)
         self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, success_count == 0)
         self.selected_paths.clear()
         self.selected_entries.clear()
@@ -844,7 +844,7 @@ class AndroidTuiApp(App):
         self.app.call_from_thread(
             self.query_one(FooterBar).start_progress,
             1.0,
-            f"Caricamento in corso: {fname}...",
+            t("toast_ul_progress", name=fname),
         )
         success, msg = self.adb.push_file(pc_file, phone_dest)
         self.app.call_from_thread(self.query_one(FooterBar).update_progress, 1.0)
@@ -913,7 +913,7 @@ class AndroidTuiApp(App):
     def action_delete_batch(self) -> None:
         """Prompts confirmation and performs batch deletion of all selected items."""
         if not self.selected_paths:
-            self.query_one(FooterBar).show_toast("Nessun elemento selezionato per l'eliminazione batch.", is_error=True)
+            self.query_one(FooterBar).show_toast(t("toast_no_items_batch_del"), is_error=True)
             return
 
         entries_to_delete = list(self.selected_entries.values())
@@ -932,13 +932,13 @@ class AndroidTuiApp(App):
         for idx, entry in enumerate(entries, 1):
             self.app.call_from_thread(
                 self.query_one(FooterBar).show_toast,
-                f"Eliminazione batch ({idx}/{total}): {entry.name}...",
+                t("toast_del_batch_progress", idx=idx, total=total, name=entry.name),
             )
             success, _ = self.adb.delete_entry(entry.path)
             if success:
                 success_count += 1
 
-        msg = f"Eliminazione batch completata: {success_count}/{total} elementi rimossi."
+        msg = t("toast_del_batch_complete", count=success_count, total=total)
         self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, success_count == 0)
         self.selected_paths.clear()
         self.selected_entries.clear()
@@ -968,19 +968,18 @@ class AndroidTuiApp(App):
         self.push_screen(QuickJumpModal(device=self.adb.active_device), handle_jump)
 
     def action_toggle_language(self) -> None:
-        """Toggles interface language between Italian (IT) and English (EN)."""
+        """Toggles interface language between available languages dynamically."""
         new_lang = toggle_language()
         self.query_one(HeaderBar).update_texts()
         self.query_one(FooterBar).update_texts()
         self.query_one(BrowserView).update_texts()
         self.query_one(DisconnectedDashboard).update_texts()
         self.sync_views()
-        lang_name = "English (EN)" if new_lang == "en" else "Italiano (IT)"
-        self.query_one(FooterBar).show_toast(f"Lingua / Language: {lang_name}")
+        lang_name = get_language_name(new_lang)
+        self.query_one(FooterBar).show_toast(t("toast_lang_changed", name=lang_name))
 
     def show_no_microsd_toast(self) -> None:
-        msg = "Nessuna scheda MicroSD esterna rilevata nel dispositivo." if get_current_language() == "it" else "No external MicroSD card detected in device."
-        self.query_one(FooterBar).show_toast(msg, is_error=True)
+        self.query_one(FooterBar).show_toast(t("toast_no_microsd"), is_error=True)
 
     # -------------------------------------------------------------
     # Device Management & Mouse Interactions
@@ -994,7 +993,7 @@ class AndroidTuiApp(App):
                 return
 
             if selected_dev == "action:scan_usb":
-                self.query_one(FooterBar).show_toast("Scansione dispositivi USB in corso...")
+                self.query_one(FooterBar).show_toast(t("toast_scan_usb"))
                 self.scan_and_auto_connect()
             elif selected_dev == "action:wifi_connect":
                 def on_wifi_addr(addr: Optional[str]) -> None:
@@ -1074,15 +1073,15 @@ class AndroidTuiApp(App):
                     name = dev_info.get("name", "Dispositivo")
 
                     if dev_type == "usb":
-                        self.query_one(FooterBar).show_toast(f"Connessione a {name} (USB)...")
+                        self.query_one(FooterBar).show_toast(t("toast_connecting_usb", name=name))
                         self.scan_and_auto_connect(preferred_serial=serial)
                     else:
                         target = ip_port or serial
                         if target:
-                            self.query_one(FooterBar).show_toast(f"Riconnessione rapida a {name} ({target})...")
+                            self.query_one(FooterBar).show_toast(t("toast_reconnecting_target", name=name, target=target))
                             self._do_wifi_connect_worker(target, select_serial=serial or target)
             except Exception as e:
-                self.query_one(FooterBar).show_toast(f"Errore connessione dispositivo: {e}", is_error=True)
+                self.query_one(FooterBar).show_toast(t("toast_conn_error", err=str(e)), is_error=True)
 
         elif btn_id.startswith("btn-del-recent-"):
             try:
@@ -1095,20 +1094,20 @@ class AndroidTuiApp(App):
                         self.query_one(FooterBar).show_toast(t("dash_device_removed"))
                         self.sync_views()
             except Exception as e:
-                self.query_one(FooterBar).show_toast(f"Errore rimozione dispositivo: {e}", is_error=True)
+                self.query_one(FooterBar).show_toast(t("toast_dev_remove_error", err=str(e)), is_error=True)
 
         elif btn_id == "btn-clear-history":
             clear_remembered_devices()
-            self.query_one(FooterBar).show_toast("Cronologia dispositivi cancellata.")
+            self.query_one(FooterBar).show_toast(t("toast_history_cleared"))
             self.sync_views()
 
         # USB options
         elif btn_id == "btn-usb-detect":
-            self.query_one(FooterBar).show_toast("Rilevamento dispositivi USB in corso...")
+            self.query_one(FooterBar).show_toast(t("toast_scan_usb"))
             self.scan_and_auto_connect()
 
         elif btn_id == "btn-usb-reconnect":
-            self.query_one(FooterBar).show_toast("Richiesta di riconnessione inviata ad ADB...")
+            self.query_one(FooterBar).show_toast(t("toast_adb_reconnect_sent"))
             self._do_reconnect_worker()
 
         # Wireless manual addition
@@ -1127,7 +1126,7 @@ class AndroidTuiApp(App):
 
         # ADB server tools
         elif btn_id == "btn-restart-adb":
-            self.query_one(FooterBar).show_toast("Riavvio del server ADB in corso...")
+            self.query_one(FooterBar).show_toast(t("toast_adb_restart_sent"))
             self._do_restart_adb_worker()
 
         elif btn_id == "btn-tcpip":
@@ -1142,14 +1141,14 @@ class AndroidTuiApp(App):
 
     @work(thread=True)
     def _do_wifi_connect_worker(self, addr: str, select_serial: Optional[str] = None) -> None:
-        self.app.call_from_thread(self.query_one(FooterBar).show_toast, f"Connessione a {addr}...")
+        self.app.call_from_thread(self.query_one(FooterBar).show_toast, t("toast_connecting_addr", addr=addr))
         success, msg = self.adb.wireless_connect(addr)
         self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, not success)
         self.scan_and_auto_connect(preferred_serial=select_serial or addr)
 
     @work(thread=True)
     def _do_wifi_pair_worker(self, addr: str, code: str) -> None:
-        self.app.call_from_thread(self.query_one(FooterBar).show_toast, f"Accoppiamento con {addr}...")
+        self.app.call_from_thread(self.query_one(FooterBar).show_toast, t("toast_pairing_addr", addr=addr))
         success, msg = self.adb.wireless_pair(addr, code)
         self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, not success)
         if success:

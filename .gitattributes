@@ -12,3 +12,7 @@ atui text eol=lf
 *.cmd text eol=crlf
 *.bat text eol=crlf
 *.ps1 text eol=crlf
+
+# Binaries
+*.exe binary
+*.msi binary

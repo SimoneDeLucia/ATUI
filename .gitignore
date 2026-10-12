@@ -11,6 +11,7 @@ build/
 
 # Documentation & Local Guides
 GUIDE/
+FIX/
 
 # Installer artifacts
 installer/downloads/

@@ -95,6 +95,24 @@ def get_current_language() -> str:
     return _CURRENT_LANG
 
 
+def get_language_name(lang: Optional[str] = None) -> str:
+    """Returns human-readable name of specified or current language from its locale dictionary."""
+    if not _LOCALES:
+        _load_locales()
+    target_lang = lang or _CURRENT_LANG
+    lang_dict = _LOCALES.get(target_lang, {})
+    if "lang_name" in lang_dict:
+        return lang_dict["lang_name"]
+    defaults = {
+        "it": "Italiano (IT)",
+        "en": "English (EN)",
+        "es": "Español (ES)",
+        "fr": "Français (FR)",
+        "de": "Deutsch (DE)",
+    }
+    return defaults.get(target_lang, target_lang.upper())
+
+
 def toggle_language() -> str:
     """Cycles through all available languages and returns new active code."""
     avail = get_available_languages()

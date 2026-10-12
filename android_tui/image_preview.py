@@ -122,16 +122,64 @@ def generate_video_demo(name: str) -> "Image.Image":
     return img
 
 
+def resolve_raylib_thumb_path() -> Optional[str]:
+    """Finds raylib-thumb executable bundled with ATUI or in system PATH."""
+    base_dir = Path(__file__).resolve().parent
+    candidates = [
+        base_dir / "bin" / ("raylib-thumb.exe" if os.name == "nt" else "raylib-thumb"),
+        base_dir.parent / "tools" / "raylib_thumb" / ("raylib-thumb.exe" if os.name == "nt" else "raylib-thumb"),
+    ]
+    for c in candidates:
+        if c.exists():
+            return str(c)
+    found = shutil.which("raylib-thumb")
+    if found:
+        return found
+    return None
+
+
+def render_image_raylib(image_path: Path, max_width: int = 46, max_height: int = 20) -> Optional[Tuple[Text, str]]:
+    """
+    Renders an image thumbnail using the high-performance Raylib-Go engine
+    (https://github.com/gen2brain/raylib-go).
+    """
+    raylib_bin = resolve_raylib_thumb_path()
+    if not raylib_bin:
+        return None
+
+    try:
+        res = subprocess.run(
+            [raylib_bin, str(image_path), str(max_width), str(max_height)],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+        )
+        if res.returncode == 0 and res.stdout:
+            lines = res.stdout.splitlines()
+            dim_str = "px (Raylib-Go)"
+            ansi_lines = []
+            for line in lines:
+                if line.startswith("DIM:"):
+                    dim_str = f"{line.split(':', 1)[1]} px (Raylib-Go)"
+                else:
+                    ansi_lines.append(line)
+            ansi_content = "\n".join(ansi_lines)
+            if ansi_content.strip():
+                rendered = Text.from_ansi(ansi_content)
+                return rendered, dim_str
+    except Exception:
+        pass
+    return None
+
+
 def load_image_thumbnail(
     remote_path: str,
     adb_manager,
     max_width: int = 46,
     max_height: int = 20,
 ) -> Tuple[Optional[Text], Optional[str]]:
-    """Downloads or retrieves image (including HEIC, GIF, WEBP) and renders high-res half-block."""
-    if not HAS_PILLOW:
-        return None, "Libreria Pillow non installata"
-
+    """Downloads or retrieves image and renders high-res half-block with Raylib-Go or Pillow."""
     cache_key = f"img_{remote_path}_{max_width}_{max_height}"
     if cache_key in _MEDIA_CACHE:
         return _MEDIA_CACHE[cache_key]
@@ -151,25 +199,43 @@ def load_image_thumbnail(
     if not target.exists():
         return None, "Download fallito"
 
+    # 1. Prioritize Raylib-Go accelerated rendering
+    raylib_res = render_image_raylib(target, max_width, max_height)
+    if raylib_res is not None:
+        try:
+            target.unlink()
+        except Exception:
+            pass
+        _MEDIA_CACHE[cache_key] = raylib_res
+        return raylib_res
+
+    # 2. Pillow fallback
+    if HAS_PILLOW:
+        try:
+            with Image.open(target) as img:
+                dim_str = f"{img.width}x{img.height} px"
+                text_render = render_image_halfblock(img, max_width, max_height)
+
+            try:
+                target.unlink()
+            except Exception:
+                pass
+
+            result = (text_render, dim_str)
+            _MEDIA_CACHE[cache_key] = result
+            return result
+        except Exception as e:
+            try:
+                target.unlink()
+            except Exception:
+                pass
+            return None, f"Errore anteprima: {e}"
+
     try:
-        with Image.open(target) as img:
-            dim_str = f"{img.width}x{img.height} px"
-            text_render = render_image_halfblock(img, max_width, max_height)
-
-        try:
-            target.unlink()
-        except Exception:
-            pass
-
-        result = (text_render, dim_str)
-        _MEDIA_CACHE[cache_key] = result
-        return result
-    except Exception as e:
-        try:
-            target.unlink()
-        except Exception:
-            pass
-        return None, f"Errore anteprima: {e}"
+        target.unlink()
+    except Exception:
+        pass
+    return None, "Nessun motore di rendering immagini disponibile"
 
 
 def load_video_thumbnail(
@@ -446,14 +512,15 @@ def get_file_thumbnail(
     Renders actual high-res previews for images and videos, and renders custom cyber-graphic
     category cards with Pillow for all other types (including unrecognized files like prod.keys with 📎).
     """
-    if not HAS_PILLOW:
-        return None, "Pillow non installato"
+    cat_val = entry.category.value if hasattr(entry.category, "value") else str(entry.category)
+    has_raylib = bool(resolve_raylib_thumb_path())
+
+    if not HAS_PILLOW and not (has_raylib and cat_val == "image"):
+        return None, "Nessun motore thumbnail disponibile"
 
     cache_key = f"thumb_{entry.path}_{max_width}_{max_height}"
     if cache_key in _MEDIA_CACHE:
         return _MEDIA_CACHE[cache_key]
-
-    cat_val = entry.category.value if hasattr(entry.category, "value") else str(entry.category)
 
     # 1. Real Image handling
     if cat_val == "image" and not adb_manager.demo_mode:

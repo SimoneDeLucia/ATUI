@@ -287,7 +287,8 @@ class BrowserView(Horizontal):
             size_text = Text(entry.formatted_size, style=size_style)
 
             # Col 3: Type / Category
-            type_text = Text(entry.category.value.capitalize(), style=color)
+            cat_label = t(f"cat_{entry.category.value}")
+            type_text = Text(cat_label, style=color)
 
             # Col 4: Date
             date_text = Text(entry.date_str or "—", style="#565f89")
@@ -329,7 +330,7 @@ class BrowserView(Horizontal):
         if image_render is not None:
             preview_img.update(image_render)
         else:
-            loading_msg = f"{icon} Caricamento anteprima..."
+            loading_msg = f"{icon} {t('preview_loading')}"
             preview_img.update(f"[dim #bb9af7]{loading_msg}[/]")
 
         # Build formatted details
@@ -339,7 +340,8 @@ class BrowserView(Horizontal):
         markup.append(f"[{color} bold]{icon} {safe_name}[/]")
         markup.append(f"[dim]{safe_path}[/]\n")
 
-        markup.append(f"[bold #7dcfff]{t('meta_type')}:[/] {entry.category.value.capitalize()}")
+        cat_desc = t(f"cat_{entry.category.value}")
+        markup.append(f"[bold #7dcfff]{t('meta_type')}:[/] {cat_desc}")
         markup.append(
             f"[bold #7dcfff]{t('meta_size')}:[/] {entry.formatted_size} ({entry.size:,} byte)"
             if not entry.is_dir
@@ -358,7 +360,8 @@ class BrowserView(Horizontal):
         else:
             markup.append(f"[bold #7aa2f7]{t('meta_content_details')}:[/\n]")
             if entry.category == FileCategory.IMAGE:
-                markup.append(f"[#bb9af7]{t('meta_img_preview')}[/]")
+                img_lbl = t("meta_img_preview_raylib") if (image_dim and "Raylib-Go" in image_dim) else t("meta_img_preview")
+                markup.append(f"[#bb9af7]{img_lbl}[/]")
                 markup.append(f"[#c0caf5]{t('meta_format')}:[/] [bold #7dcfff]{entry.extension.upper() or 'IMG'}[/]")
                 if image_dim:
                     markup.append(f"[#c0caf5]{t('meta_resolution')}:[/] [bold #73daca]{image_dim}[/]")
@@ -390,9 +393,9 @@ class BrowserView(Horizontal):
                     escaped_preview = escape(preview_text[:2000])
                     markup.append(f"[#c0caf5]{escaped_preview}[/]")
                 else:
-                    markup.append("[dim]Caricamento anteprima testo in corso...[/]")
+                    markup.append(f"[dim]{t('preview_loading_text')}[/]")
             else:
-                markup.append(f"[dim]File generico / binario ({entry.extension.upper() or 'Dati'}) [📎][/]")
+                markup.append(f"[dim]{t('meta_generic_binary', ext=entry.extension.upper() or 'DATA')}[/]")
                 markup.append(f"[bold #73daca]{t('meta_press_d_dl')}[/]")
 
         markup.append("\n" + "─" * 28 + "\n")

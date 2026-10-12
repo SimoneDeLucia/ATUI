@@ -26,10 +26,24 @@ Apache License, Version 2.0:
              scrcpy as a standalone external process without incorporating its
              compiled binaries or proprietary sources.
 
+3. raylib-go
+   Source: https://github.com/gen2brain/raylib-go
+   Copyright (c) 2014-2024 Milan Nikolic <gen2brain@gmail.com>
+   Copyright (c) 2013-2024 Ramon Santamaria (@raysan5)
+   License: zlib/libpng License (https://opensource.org/licenses/Zlib)
+   Used for: High-performance purego ANSI 24-bit halfblock terminal thumbnail
+             rendering engine and bicubic image processing.
+
 ------------------------------------------------------------------------
 In accordance with Section 4 of the Apache License, Version 2.0:
 The full text of the Apache License 2.0 is available at:
 https://www.apache.org/licenses/LICENSE-2.0
 
-As confirmed by the Free Software Foundation (FSF), the Apache License 2.0
-is fully compatible with the GNU General Public License version 3 (GPL-3.0).
+In accordance with the zlib/libpng License:
+This software is provided 'as-is', without any express or implied warranty.
+In no event will the authors be held liable for any damages arising from
+the use of this software.
+
+As confirmed by the Free Software Foundation (FSF), both the Apache License 2.0
+and the zlib/libpng License are fully compatible with the GNU General Public
+License version 3 (GPL-3.0).

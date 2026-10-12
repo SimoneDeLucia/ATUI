@@ -42,6 +42,16 @@ def build_msi_package():
         import msilib
         from msilib import schema, sequence
     except ImportError:
+        import subprocess
+        candidates = [
+            Path(r"C:\Users\SiMonee\AppData\Local\Programs\Python\Python311\python.exe"),
+            Path(sys.executable).parent.parent / "Python311" / "python.exe",
+        ]
+        for py in candidates:
+            if py.exists() and str(py) != sys.executable:
+                print(f"[*] msilib assente in {sys.version.split()[0]}. Delega compilazione MSI a {py}...")
+                res = subprocess.run([str(py), str(Path(__file__).resolve())])
+                return res.returncode == 0
         print("[!] msilib non presente in questo interprete Python. Eseguo fallback...")
         return False
 

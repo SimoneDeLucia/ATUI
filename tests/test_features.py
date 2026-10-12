@@ -179,13 +179,25 @@ async def run_compatibility_suite():
         assert app.query_one(DisconnectedDashboard).display is True
         print("    Navigating to main menu on logo click verified!")
 
-        # 12. Test Modular i18n from locales/*.json
-        print("[12] Testing Modular i18n from JSON files...")
-        from android_tui.i18n import get_available_languages
+        # 12. Test Modular i18n and Clean Keyboard Shortcuts (No Backslashes)
+        print("[12] Testing Modular i18n and Clean Keyboard Shortcuts (No Backslashes)...")
+        from android_tui.i18n import get_available_languages, set_language, get_language_name
+        from rich.text import Text
         langs = get_available_languages()
-        assert "it" in langs and "en" in langs
-        assert "\\[d\\]" in t("meta_act_dl")
-        print("    Modular JSON translations & escaped hotkeys verified!")
+        assert "it" in langs and "en" in langs and "es" in langs
+        assert get_language_name("es") == "Español (ES)"
+
+        # Verify rendered text removes backslashes completely
+        for l in ["it", "en", "es"]:
+            set_language(l)
+            plain_dl = Text.from_markup(t("meta_act_dl")).plain
+            assert "\\" not in plain_dl
+            assert "[d]" in plain_dl
+            plain_open = Text.from_markup(t("meta_act_open")).plain
+            assert "\\" not in plain_open
+            assert "[Enter]" in plain_open
+        set_language("it")
+        print("    Modular JSON translations & clean hotkeys (no backslashes) verified!")
 
         # 13. Test PathBreadcrumbsModal Quick Folders Section
         print("[13] Testing PathBreadcrumbsModal Quick Folders Section...")
@@ -310,6 +322,28 @@ async def run_compatibility_suite():
         assert hasattr(FileTable, "FileDoubleClicked")
         assert hasattr(app, "on_file_table_file_double_clicked")
         print("    FileTable double click event and application handler verified!")
+
+        # 22. Test Raylib-Go Accelerated Thumbnail Engine
+        print("[22] Testing Raylib-Go Accelerated Thumbnail Engine...")
+        from pathlib import Path
+        from android_tui.image_preview import resolve_raylib_thumb_path, render_image_raylib
+        from PIL import Image
+        raylib_bin = resolve_raylib_thumb_path()
+        assert raylib_bin is not None
+        assert Path(raylib_bin).exists()
+
+        test_img_path = Path("test_thumb_sample.png")
+        test_img = Image.new("RGB", (100, 100), color=(120, 200, 255))
+        test_img.save(test_img_path)
+        try:
+            rendered_ansi, dim = render_image_raylib(str(test_img_path), max_width=40, max_height=20)
+            assert rendered_ansi is not None
+            assert "Raylib-Go" in dim
+            assert "▀" in rendered_ansi.plain
+            print(f"    Raylib-Go thumbnail successfully generated: {dim} ({len(rendered_ansi.plain)} chars)")
+        finally:
+            if test_img_path.exists():
+                test_img_path.unlink()
 
         print("\n[SUCCESS] ALL INTEGRATION TESTS (ALL REQUIREMENTS) PASSED 100%!")
 

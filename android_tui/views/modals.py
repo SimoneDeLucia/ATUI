@@ -25,10 +25,9 @@ class WirelessConnectModal(ModalScreen[Optional[str]]):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-dialog"):
-            yield Static("📶 Connessione Debug Wireless", classes="modal-title")
+            yield Static(t("modal_wifi_connect_title"), classes="modal-title")
             yield Static(
-                "Inserisci l'indirizzo IP e la porta visualizzati sul telefono in\n"
-                "[bold]Opzioni Sviluppatore > Debug Wireless[/] (es. 192.168.1.50:5555):",
+                t("modal_wifi_connect_subtitle"),
                 classes="modal-subtitle",
             )
             yield Input(placeholder="192.168.1.x:5555", id="input-wifi-addr")
@@ -52,17 +51,15 @@ class WirelessPairModal(ModalScreen[Optional[tuple]]):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-dialog"):
-            yield Static("📶 Accoppiamento Wireless (Pairing)", classes="modal-title")
+            yield Static(t("modal_wifi_pair_title"), classes="modal-title")
             yield Static(
-                "In [bold]Debug Wireless > Accoppia dispositivo con codice[/]:\n"
-                "1. Inserisci IP e Porta di accoppiamento\n"
-                "2. Inserisci il codice a 6 cifre visualizzato sullo schermo",
+                t("modal_wifi_pair_subtitle"),
                 classes="modal-subtitle",
             )
-            yield Static("Indirizzo IP e Porta (es. 192.168.1.50:37123):")
+            yield Static(t("modal_wifi_pair_addr_label"))
             yield Input(placeholder="192.168.1.x:porta", id="input-pair-addr")
-            yield Static("Codice di accoppiamento a 6 cifre:")
-            yield Input(placeholder="es. 123456", id="input-pair-code")
+            yield Static(t("modal_wifi_pair_code_label"))
+            yield Input(placeholder="123456", id="input-pair-code")
             with Horizontal(classes="button-bar"):
                 yield Button(t("btn_pair"), id="btn-submit", variant="primary")
                 yield Button(t("btn_cancel"), id="btn-cancel")
@@ -158,14 +155,12 @@ class BatchDeleteModal(ModalScreen[bool]):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-dialog"):
-            yield Static("⚠️ Conferma Eliminazione Multipla (Batch)", classes="modal-title")
+            yield Static(t("modal_batch_del_title"), classes="modal-title")
             names_preview = ", ".join(e.name for e in self.entries[:4])
             if len(self.entries) > 4:
-                names_preview += f" ... e altri {len(self.entries) - 4} file"
+                names_preview += f" {t('modal_and_more_files', count=len(self.entries) - 4)}"
             yield Static(
-                f"Sei sicuro di voler eliminare definitivamente [bold #f7768e]{len(self.entries)} elementi[/] dal telefono?\n\n"
-                f"[dim]Elementi: {names_preview}[/]\n\n"
-                f"[bold #f7768e]Questa operazione è irreversibile e cancellerà i file selezionati.[/]",
+                t("modal_batch_del_desc", count=len(self.entries), names=names_preview),
                 classes="modal-subtitle",
             )
             with Horizontal(classes="button-bar"):
@@ -189,7 +184,7 @@ def pick_folder_gui(initial_dir: str = "") -> Optional[str]:
             ps_script = (
                 "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
                 "$f = New-Object System.Windows.Forms.FolderBrowserDialog; "
-                "$f.Description = 'Seleziona la cartella di destinazione per salvare i file'; "
+                "$f.Description = 'Destination folder'; "
                 + (f"$f.SelectedPath = '{init_clean}'; " if init_clean else "")
                 + "if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.SelectedPath }"
             )
@@ -229,10 +224,9 @@ class DownloadModal(ModalScreen[Optional[str]]):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-dialog"):
-            yield Static("📥 Scarica su PC (adb pull)", classes="modal-title")
+            yield Static(t("modal_dl_title"), classes="modal-title")
             yield Static(
-                f"Elemento da scaricare dal telefono:\n[bold #7dcfff]{self.remote_path}[/]\n\n"
-                f"Cartella di destinazione sul tuo PC:",
+                t("modal_dl_subtitle", path=self.remote_path),
                 classes="modal-subtitle",
             )
             with Horizontal(classes="folder-input-row"):
@@ -268,18 +262,15 @@ class BatchDownloadModal(ModalScreen[Optional[str]]):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-dialog"):
-            yield Static("📥 Download Batch Multi-File (adb pull)", classes="modal-title")
+            yield Static(t("modal_batch_dl_title"), classes="modal-title")
             total_bytes = sum(e.size for e in self.entries if not e.is_dir)
             total_str = self._format_size(total_bytes)
             names_preview = ", ".join(e.name for e in self.entries[:4])
             if len(self.entries) > 4:
-                names_preview += f" ... e altri {len(self.entries) - 4} file"
+                names_preview += f" {t('modal_and_more_files', count=len(self.entries) - 4)}"
 
             yield Static(
-                f"Elementi selezionati per il download:\n"
-                f"[bold #7dcfff]{len(self.entries)} elementi[/] (totale: [bold #73daca]{total_str}[/])\n"
-                f"[dim]File: {names_preview}[/]\n\n"
-                f"Cartella di destinazione sul PC:",
+                t("modal_batch_dl_subtitle", count=len(self.entries), size=total_str, names=names_preview),
                 classes="modal-subtitle",
             )
             with Horizontal(classes="folder-input-row"):
@@ -339,8 +330,8 @@ class DownloadDestinationModal(ModalScreen[Optional[Tuple[str, str, Optional[Adb
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-dialog"):
             yield Static(t("transfer_title"), classes="modal-title")
-            summary_txt = f"{len(self.entries)} elementi" if len(self.entries) > 1 else (self.entries[0].name if self.entries else "")
-            yield Static(f"[dim]Oggetto del trasferimento: [bold #7dcfff]{summary_txt}[/][/]", classes="modal-subtitle")
+            summary_txt = f"{len(self.entries)} {t('transfer_items_suffix')}" if len(self.entries) > 1 else (self.entries[0].name if self.entries else "")
+            yield Static(f"[dim]{t('transfer_item_prefix')}: [bold #7dcfff]{summary_txt}[/][/]", classes="modal-subtitle")
 
             # Selection buttons between PC and Android
             with Horizontal(classes="button-bar", id="d2d-choice-bar"):
@@ -348,7 +339,7 @@ class DownloadDestinationModal(ModalScreen[Optional[Tuple[str, str, Optional[Adb
                 has_devs = bool(self.other_devices)
                 dev_btn_lbl = t("transfer_mode_device")
                 if not has_devs:
-                    dev_btn_lbl += " (Nessun 2° dispositivo)"
+                    dev_btn_lbl += f" ({t('transfer_no_second_device_short')})"
                 yield Button(dev_btn_lbl, id="btn-choice-device", disabled=not has_devs)
 
             # Section PC Destination
@@ -462,10 +453,9 @@ class UploadModal(ModalScreen[Optional[str]]):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-dialog"):
-            yield Static("📤 Carica File su Telefono (adb push)", classes="modal-title")
+            yield Static(t("modal_upload_title"), classes="modal-title")
             yield Static(
-                f"Cartella di destinazione sul telefono:\n[bold #7dcfff]{self.current_phone_dir}[/]\n\n"
-                f"Inserisci il percorso del file o cartella locale sul PC:",
+                t("modal_upload_subtitle", dir=self.current_phone_dir),
                 classes="modal-subtitle",
             )
             yield Input(placeholder=r"C:\Users\...\file.apk", id="input-pc-src")
@@ -489,9 +479,9 @@ class CreateFolderModal(ModalScreen[Optional[str]]):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-dialog"):
-            yield Static("📁 Nuova Cartella", classes="modal-title")
-            yield Static("Inserisci il nome della nuova cartella sul telefono:", classes="modal-subtitle")
-            yield Input(placeholder="Nome cartella", id="input-folder-name")
+            yield Static(t("modal_mkdir_title"), classes="modal-title")
+            yield Static(t("modal_mkdir_subtitle"), classes="modal-subtitle")
+            yield Input(placeholder=t("modal_mkdir_placeholder"), id="input-folder-name")
             with Horizontal(classes="button-bar"):
                 yield Button(t("btn_create"), id="btn-submit", variant="primary")
                 yield Button(t("btn_cancel"), id="btn-cancel")
@@ -516,8 +506,8 @@ class RenameModal(ModalScreen[Optional[str]]):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-dialog"):
-            yield Static("✏️ Rinomina Elemento", classes="modal-title")
-            yield Static(f"Modifica il nome per [bold #7dcfff]{self.current_name}[/]:", classes="modal-subtitle")
+            yield Static(t("modal_rename_title"), classes="modal-title")
+            yield Static(t("modal_rename_subtitle", name=self.current_name), classes="modal-subtitle")
             yield Input(value=self.current_name, id="input-rename")
             with Horizontal(classes="button-bar"):
                 yield Button(t("btn_rename"), id="btn-submit", variant="primary")
@@ -544,12 +534,10 @@ class DeleteConfirmModal(ModalScreen[bool]):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-dialog"):
-            yield Static("⚠️ Conferma Eliminazione", classes="modal-title")
-            kind = "la cartella e tutto il suo contenuto" if self.is_dir else "il file"
+            yield Static(t("modal_del_title"), classes="modal-title")
+            kind = t("modal_del_kind_dir") if self.is_dir else t("modal_del_kind_file")
             yield Static(
-                f"Sei sicuro di voler eliminare definitivamente {kind}?\n\n"
-                f"[bold #f7768e]{self.target_path}[/]\n\n"
-                f"[dim]Questa operazione non può essere annullata.[/]",
+                t("modal_del_subtitle", kind=kind, path=self.target_path),
                 classes="modal-subtitle",
             )
             with Horizontal(classes="button-bar"):
@@ -564,42 +552,12 @@ class DeleteConfirmModal(ModalScreen[bool]):
 # 9. Help Modal (PikPakTUI-inspired cheatsheet)
 # -----------------------------------------------------------------
 class HelpModal(ModalScreen[None]):
-    """Modal showing all keyboard shortcuts and ADB tips."""
+    """Modal showing all keyboard shortcuts, Raylib-Go thumbnail engine, and ADB tips."""
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-dialog"):
-            yield Static("📖 Guida & Scorciatoie da Tastiera — AndroidTUI", classes="modal-title")
-            help_content = (
-                "[bold #7dcfff]Navigazione File System:[/\n]"
-                "  • [bold #73daca]↑ / k[/]         Sposta cursore in alto\n"
-                "  • [bold #73daca]↓ / j[/]         Sposta cursore in basso\n"
-                "  • [bold #73daca]Enter / l[/]     Apri cartella selezionata\n"
-                "  • [bold #73daca]Backspace / h[/] Torna alla cartella genitore\n"
-                "  • [bold #73daca]p[/]             Seleziona cartella o sottocartella nel percorso (Breadcrumbs)\n"
-                "  • [bold #73daca]s / S[/]         Ordina per Nome, Dimensione o Tipo (Inverti ordine)\n"
-                "  • [bold #73daca]m[/]             Condivisione schermo in tempo reale con Scrcpy\n\n"
-                "[bold #7dcfff]Selezione Multipla & Batch:[/\n]"
-                "  • [bold #73daca]Spazio (Space)[/]  Seleziona/deseleziona file (mantiene il cursore)\n"
-                "  • [bold #73daca]a[/]             Seleziona / deseleziona tutti i file\n\n"
-                "[bold #7dcfff]Gestione File & Trasferimenti:[/\n]"
-                "  • [bold #73daca]d[/]             [bold]Scarica su PC (adb pull)[/] (singolo o batch)\n"
-                "  • [bold #73daca]u[/]             [bold]Carica dal PC al telefono (adb push)[/]\n"
-                "  • [bold #73daca]f[/]             Crea nuova cartella (mkdir)\n"
-                "  • [bold #73daca]n[/]             Rinomina elemento (mv)\n"
-                "  • [bold #73daca]x[/]             Elimina elemento (rm -rf)\n"
-                "  • [bold #73daca]r[/]             Ricarica la cartella corrente\n\n"
-                "[bold #7dcfff]Interazione con Mouse:[/\n]"
-                "  • Clicca sui quadrati [✓] / [ ] per selezionare i file con il mouse\n"
-                "  • Clicca sulle intestazioni colonna (Nome, Dimensione, Tipo) per ordinare\n"
-                "  • Clicca sul percorso in alto per saltare alle sottocartelle\n"
-                "  • Clicca sui pulsanti in basso nel footer per eseguire le azioni\n\n"
-                "[bold #7dcfff]Connessioni & Dispositivi:[/\n]"
-                "  • [bold #73daca]c[/]             Menu gestione e aggiunta dispositivi (USB & Wireless)\n"
-                "  • [bold #73daca]F2[/]            Cambia lingua (Italiano / English)\n"
-                "  • [bold #73daca]?[/]             Mostra questa schermata di aiuto\n"
-                "  • [bold #73daca]q[/]             Esci da AndroidTUI\n"
-            )
-            yield Static(help_content, classes="modal-subtitle")
+            yield Static(t("help_modal_title"), classes="modal-title")
+            yield Static(t("help_modal_content"), classes="modal-subtitle")
             with Horizontal(classes="button-bar"):
                 yield Button(t("btn_close"), id="btn-close", variant="primary")
 
@@ -618,32 +576,30 @@ class QuickJumpModal(ModalScreen[Optional[str]]):
         self.device = device
         self.locations: List[Tuple[str, str, str]] = []
 
-        is_it = (get_current_language() == "it")
+        free_suffix = t("quick_jump_free_suffix")
 
         # 1. Internal Storage
-        int_free = f" ({device.storage_free} lib.)" if device and device.storage_free else ""
-        int_lbl = f"Memoria Interna: /sdcard{int_free}" if is_it else f"Internal Storage: /sdcard{int_free}"
+        int_free = f" ({device.storage_free} {free_suffix})" if device and device.storage_free else ""
+        int_lbl = f"{t('quick_jump_internal')}: /sdcard{int_free}"
         self.locations.append((int_lbl, "/sdcard", "📱"))
 
         # 2. External MicroSD (Only present if device has an external MicroSD!)
         if device and device.ext_sd_path:
-            sd_free = f" ({device.ext_sd_free} lib.)" if device.ext_sd_free else ""
-            sd_lbl = f"MicroSD: {device.ext_sd_path}{sd_free}"
+            sd_free = f" ({device.ext_sd_free} {free_suffix})" if device.ext_sd_free else ""
+            sd_lbl = f"{t('quick_jump_microsd')}: {device.ext_sd_path}{sd_free}"
             self.locations.append((sd_lbl, device.ext_sd_path, "💾"))
 
         # 3. Downloads
-        self.locations.append(("Downloads: /sdcard/Download", "/sdcard/Download", "📥"))
+        self.locations.append((f"{t('quick_jump_downloads')}: /sdcard/Download", "/sdcard/Download", "📥"))
 
         # 4. Photos / Camera (DCIM)
-        dcim_lbl = "DCIM (Fotocamera): /sdcard/DCIM" if is_it else "DCIM (Camera): /sdcard/DCIM"
-        self.locations.append((dcim_lbl, "/sdcard/DCIM", "📷"))
+        self.locations.append((f"{t('quick_jump_dcim')}: /sdcard/DCIM", "/sdcard/DCIM", "📷"))
 
         # 5. Pictures
-        self.locations.append(("Pictures: /sdcard/Pictures", "/sdcard/Pictures", "🖼️"))
+        self.locations.append((f"{t('quick_jump_pictures')}: /sdcard/Pictures", "/sdcard/Pictures", "🖼️"))
 
         # 6. System Root
-        root_lbl = "Root di Sistema: /" if is_it else "System Root: /"
-        self.locations.append((root_lbl, "/", "⚙️"))
+        self.locations.append((f"{t('quick_jump_root')}: /", "/", "⚙️"))
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-dialog"):
@@ -719,7 +675,7 @@ class PathBreadcrumbsModal(ModalScreen[Optional[str]]):
                     if is_current:
                         t_lbl.append("📍 ", style="bold #73daca")
                         t_lbl.append(label, style="bold #73daca underline")
-                        curr_tag = " [Cartella Attuale]" if get_current_language() == "it" else " [Current Folder]"
+                        curr_tag = f" [{t('breadcrumb_current_folder')}]"
                         t_lbl.append(curr_tag, style="dim #73daca")
                     else:
                         t_lbl.append("📁 ", style="bold #7dcfff")
@@ -729,12 +685,12 @@ class PathBreadcrumbsModal(ModalScreen[Optional[str]]):
             # Quick Folders Jump Section (Download, sdcard, MicroSD, DCIM, Video)
             yield Static(f"[bold #7dcfff]{t('breadcrumb_quick_locations')}[/]", classes="meta-key")
             with Horizontal(classes="quick-folders-bar", id="quick-folders-bar"):
-                yield Button("📥 Download", id="qf-download")
-                yield Button("📱 sdcard", id="qf-sdcard")
+                yield Button(f"📥 {t('quick_folder_dl')}", id="qf-download")
+                yield Button(f"📱 {t('quick_folder_sd')}", id="qf-sdcard")
                 if self.device and self.device.ext_sd_path:
-                    yield Button("💾 MicroSD", id="qf-microsd")
-                yield Button("📷 DCIM", id="qf-dcim")
-                yield Button("🎬 Video", id="qf-video")
+                    yield Button(f"💾 {t('quick_folder_msd')}", id="qf-microsd")
+                yield Button(f"📷 {t('quick_folder_dcim')}", id="qf-dcim")
+                yield Button(f"🎬 {t('quick_folder_video')}", id="qf-video")
 
             yield Static(f"[bold #7dcfff]{t('breadcrumb_input_placeholder')}:[/]", classes="meta-key")
             yield Input(value=self.current_path, id="input-custom-path", placeholder="/sdcard/...")
@@ -886,20 +842,19 @@ class SortModal(ModalScreen[Optional[str]]):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-dialog"):
-            yield Static("🔄 Ordinamento File e Cartelle", classes="modal-title")
+            yield Static(t("sort_modal_title"), classes="modal-title")
             order_name = t("order_desc") if self.is_reverse else t("order_asc")
             yield Static(
-                f"Ordinamento attuale: [bold #7dcfff]{self.current_sort.upper()}[/] ({order_name})\n"
-                f"Scegli il criterio per ordinare i file nella tabella:",
+                t("sort_modal_subtitle", sort=self.current_sort.upper(), order=order_name),
                 classes="modal-subtitle",
             )
             with Vertical(classes="dialog-options-col"):
-                yield Button("🔤 Ordina per Nome", id="btn-sort-name", classes="btn-dialog-choice")
-                yield Button("⚖️ Ordina per Dimensione", id="btn-sort-size", classes="btn-dialog-choice")
-                yield Button("📁 Ordina per Tipo di File", id="btn-sort-type", classes="btn-dialog-choice")
-                yield Button("🕒 Ordina per Data di Modifica", id="btn-sort-modified", classes="btn-dialog-choice")
-                yield Button("🔒 Ordina per Permessi", id="btn-sort-perms", classes="btn-dialog-choice")
-                yield Button(f"🔄 Inverti Direzione (Attuale: {order_name})", id="btn-sort-invert", classes="btn-dialog-choice", variant="primary")
+                yield Button(t("sort_btn_name"), id="btn-sort-name", classes="btn-dialog-choice")
+                yield Button(t("sort_btn_size"), id="btn-sort-size", classes="btn-dialog-choice")
+                yield Button(t("sort_btn_type"), id="btn-sort-type", classes="btn-dialog-choice")
+                yield Button(t("sort_btn_modified"), id="btn-sort-modified", classes="btn-dialog-choice")
+                yield Button(t("sort_btn_perms"), id="btn-sort-perms", classes="btn-dialog-choice")
+                yield Button(t("sort_btn_invert", order=order_name), id="btn-sort-invert", classes="btn-dialog-choice", variant="primary")
 
             with Horizontal(classes="button-bar"):
                 yield Button(t("btn_close"), id="btn-cancel")
