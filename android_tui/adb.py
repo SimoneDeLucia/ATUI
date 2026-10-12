@@ -433,7 +433,12 @@ class AdbManager:
 
     def pull_file(self, remote_path: str, local_dest: str, target_serial: Optional[str] = None) -> Tuple[bool, str]:
         """Pulls file or folder from Phone to PC using 'adb pull'"""
-        os.makedirs(local_dest, exist_ok=True)
+        if local_dest.endswith(("/", "\\")) or (os.path.exists(local_dest) and os.path.isdir(local_dest)):
+            os.makedirs(local_dest, exist_ok=True)
+        else:
+            parent = os.path.dirname(local_dest)
+            if parent:
+                os.makedirs(parent, exist_ok=True)
         code, out, err = self.run_cmd(["pull", remote_path, local_dest], timeout=120, target_serial=target_serial)
         if code == 0:
             return True, out.strip() or f"File trasferito con successo in {local_dest}"

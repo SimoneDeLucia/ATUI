@@ -1,0 +1,55 @@
+name: Build and Release MSI
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build MSI Installer
+        shell: powershell
+        run: |
+          & "installer/build_installer.ps1" -PythonExe (Get-Command python).Source
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+        with:
+          tag_name: "v1.0.0"
+          name: "AndroidTUI v1.0.0 - Windows Installer Release"
+          body: |
+            ## AndroidTUI - Release Ufficiale
+
+            Pacchetto d'installazione Windows (.msi) aggiornato automaticamente ad ogni push.
+
+            ### Caratteristiche del pacchetto:
+            - **AndroidTUI-Setup.msi**: Installer autonomo con registrazione nel PATH, collegamenti Desktop e Menu Avvio.
+            - Driver Google ADB USB ufficiali inclusi con installazione via `pnputil`.
+            - Google Platform-Tools (`adb.exe`) inclusi.
+            - Integrazione completa con `scrcpy` e gestione multi-device ADB.
+
+            ### Installazione rapida da PowerShell (One-liner):
+            ```powershell
+            irm https://raw.githubusercontent.com/SimoneDeLucia/ATUI/main/installer/install.ps1 | iex
+            ```
+          draft: false
+          prerelease: false
+          files: |
+            installer/dist/AndroidTUI-Setup.msi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -40,6 +40,7 @@ from .views.modals import (
     QuickJumpModal,
     PathBreadcrumbsModal,
     ScrcpyModal,
+    SortModal,
 )
 from .i18n import t, toggle_language, get_current_language
 
@@ -336,7 +337,18 @@ class AndroidTuiApp(App):
         elif col == 5:
             self.sort_directory("perms")
 
+    def on_file_table_file_double_clicked(self, event: FileTable.FileDoubleClicked) -> None:
+        """Mouse double click opens folder or launches default system file viewer!"""
+        idx = event.row_index
+        if 0 <= idx < len(self.active_entries):
+            entry = self.active_entries[idx]
+            if entry.is_dir or entry.is_symlink:
+                self.load_directory(entry.path)
+            else:
+                self.action_open_file(entry)
+
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Keyboard Enter opens folder or launches default system file viewer!"""
         idx = event.cursor_row
         if 0 <= idx < len(self.active_entries):
             entry = self.active_entries[idx]
@@ -413,6 +425,18 @@ class AndroidTuiApp(App):
         order_name = t("order_desc") if self.sort_reverse else t("order_asc")
         col_name = t(f"col_{self.sort_by}")
         self.query_one(FooterBar).show_toast(t("sorted_by", col=col_name, order=order_name))
+
+    def action_show_sort_modal(self) -> None:
+        """Opens SortModal to let user select sorting column or invert order."""
+        def on_sort_choice(choice: Optional[str]) -> None:
+            if not choice:
+                return
+            if choice == "invert":
+                self.action_toggle_sort_order()
+            else:
+                self.sort_directory(choice)
+
+        self.push_screen(SortModal(current_sort=self.sort_by, is_reverse=self.sort_reverse), on_sort_choice)
 
     def action_adjust_column_widths(self) -> None:
         """Opens Column Widths customization modal."""
@@ -502,8 +526,10 @@ class AndroidTuiApp(App):
 
     @work(thread=True)
     def _do_open_file_worker(self, entry: FileEntry) -> None:
-        """Pulls file to a local temp cache directory and launches OS default viewer."""
+        """Pulls file to a local temp cache directory, launches OS default viewer, and deletes on exit."""
         import tempfile
+        import time
+        import shutil
 
         self.app.call_from_thread(
             self.query_one(FooterBar).start_progress,
@@ -521,16 +547,33 @@ class AndroidTuiApp(App):
 
         if success and local_target.exists():
             try:
+                proc = None
                 if sys.platform == "win32":
-                    os.startfile(str(local_target))
+                    proc = subprocess.Popen(["cmd", "/c", f'start "" /wait "{local_target}"'], shell=True)
                 elif sys.platform == "darwin":
-                    subprocess.Popen(["open", str(local_target)])
+                    proc = subprocess.Popen(["open", "-W", str(local_target)])
                 else:
-                    subprocess.Popen(["xdg-open", str(local_target)])
+                    proc = subprocess.Popen(["xdg-open", str(local_target)])
+
                 self.app.call_from_thread(
                     self.query_one(FooterBar).show_toast,
                     t("opened_file", name=entry.name)
                 )
+
+                if proc:
+                    proc.wait()
+
+                # Remove temporary preview file once viewer process closes
+                for _ in range(15):
+                    try:
+                        if local_target.exists():
+                            if local_target.is_file():
+                                local_target.unlink()
+                            elif local_target.is_dir():
+                                shutil.rmtree(local_target, ignore_errors=True)
+                        break
+                    except Exception:
+                        time.sleep(1.0)
             except Exception as e:
                 self.app.call_from_thread(
                     self.query_one(FooterBar).show_toast,
@@ -703,10 +746,14 @@ class AndroidTuiApp(App):
     @work(thread=True)
     def _do_device_to_device_worker(self, entries: List[FileEntry], target_device: AdbDevice, remote_dest_dir: str) -> None:
         import tempfile
+        import shutil
         total = len(entries)
         success_count = 0
-        temp_dir = tempfile.gettempdir()
+        batch_tmp_dir = tempfile.mkdtemp(prefix="atui_d2d_")
         source_serial = self.adb.active_device.serial if self.adb.active_device else None
+
+        # Pre-create remote destination folder on target device
+        self.adb.run_cmd(["shell", f"mkdir -p '{remote_dest_dir}'"], target_serial=target_device.serial)
 
         self.app.call_from_thread(
             self.query_one(FooterBar).start_progress,
@@ -719,7 +766,7 @@ class AndroidTuiApp(App):
                 self.query_one(FooterBar).show_toast,
                 t("transfer_d2d_progress", idx=idx, total=total, name=entry.name, target=target_device.display_name),
             )
-            local_tmp = os.path.join(temp_dir, f"atui_d2d_{os.path.basename(entry.path)}")
+            local_tmp = os.path.join(batch_tmp_dir, entry.name)
             pull_ok, _ = self.adb.pull_file(entry.path, local_tmp, target_serial=source_serial)
             if pull_ok:
                 push_ok, _ = self.adb.push_file(local_tmp, remote_dest_dir, target_serial=target_device.serial)
@@ -727,11 +774,15 @@ class AndroidTuiApp(App):
                     success_count += 1
                 try:
                     if os.path.exists(local_tmp):
-                        os.remove(local_tmp)
+                        if os.path.isdir(local_tmp):
+                            shutil.rmtree(local_tmp, ignore_errors=True)
+                        else:
+                            os.remove(local_tmp)
                 except Exception:
                     pass
             self.app.call_from_thread(self.query_one(FooterBar).update_progress, 1.0)
 
+        shutil.rmtree(batch_tmp_dir, ignore_errors=True)
         self.app.call_from_thread(self.query_one(FooterBar).finish_progress)
         msg = t("transfer_d2d_complete", count=success_count, total=total, target=target_device.display_name)
         self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, success_count == 0)
@@ -991,6 +1042,8 @@ class AndroidTuiApp(App):
             self.action_rename_entry()
         elif btn_id == "fbtn-delete":
             self.action_delete_entry()
+        elif btn_id == "fbtn-sort":
+            self.action_show_sort_modal()
         elif btn_id == "fbtn-devices":
             self.action_manage_devices()
         elif btn_id == "fbtn-disconnect":
@@ -1118,6 +1171,13 @@ class AndroidTuiApp(App):
         self.push_screen(HelpModal())
 
     def action_quit_app(self) -> None:
+        import tempfile, shutil
+        try:
+            cache_dir = Path(tempfile.gettempdir()) / "atui_preview_cache"
+            if cache_dir.exists():
+                shutil.rmtree(cache_dir, ignore_errors=True)
+        except Exception:
+            pass
         self.exit()
 
 

@@ -21,7 +21,7 @@ from ..i18n import t
 
 
 class FileTable(DataTable):
-    """Custom DataTable that intercepts mouse clicks on the checkbox column for instant toggling."""
+    """Custom DataTable that intercepts mouse clicks on the checkbox column, header sort, and double clicks."""
 
     class CheckboxToggled(Message):
         """Posted when a user clicks on the checkbox square of a specific row."""
@@ -33,6 +33,17 @@ class FileTable(DataTable):
     class SelectAllToggled(Message):
         """Posted when a user clicks the checkbox column header."""
         pass
+
+    class FileDoubleClicked(Message):
+        """Posted when a user double clicks on a file or folder row."""
+        def __init__(self, row_index: int):
+            super().__init__()
+            self.row_index = row_index
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._last_click_time = 0.0
+        self._last_click_row = -1
 
     async def _on_click(self, event: events.Click) -> None:
         meta = event.style.meta
@@ -52,6 +63,48 @@ class FileTable(DataTable):
                 self.post_message(self.SelectAllToggled())
                 event.stop()
                 return
+
+        # Header clicks on columns: Sort by Name, Size, Type, Date, Perms
+        if row_idx == -1:
+            if col_idx == 1 and hasattr(self.app, "sort_directory"):
+                self.app.sort_directory("name")
+                event.stop()
+                return
+            elif col_idx == 2 and hasattr(self.app, "sort_directory"):
+                self.app.sort_directory("size")
+                event.stop()
+                return
+            elif col_idx == 3 and hasattr(self.app, "sort_directory"):
+                self.app.sort_directory("type")
+                event.stop()
+                return
+            elif col_idx == 4 and hasattr(self.app, "sort_directory"):
+                self.app.sort_directory("modified")
+                event.stop()
+                return
+            elif col_idx == 5 and hasattr(self.app, "sort_directory"):
+                self.app.sort_directory("perms")
+                event.stop()
+                return
+            await super()._on_click(event)
+            return
+
+        # Data rows: Single click highlights & previews, Double click opens!
+        if row_idx is not None and row_idx >= 0:
+            import time
+            from textual.coordinate import Coordinate
+            now = time.time()
+            is_double = (now - self._last_click_time < 0.45) and (row_idx == self._last_click_row)
+            self._last_click_time = now
+            self._last_click_row = row_idx
+
+            # Update cursor position to trigger RowHighlighted & live preview
+            self.cursor_coordinate = Coordinate(row_idx, col_idx if col_idx is not None else 1)
+
+            if is_double:
+                self.post_message(self.FileDoubleClicked(row_index=row_idx))
+            event.stop()
+            return
 
         await super()._on_click(event)
 

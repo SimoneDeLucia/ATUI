@@ -29,6 +29,7 @@ class FooterBar(Static):
             yield Button(t("fbtn_mkdir"), id="fbtn-mkdir", classes="footer-pill")
             yield Button(t("fbtn_rename"), id="fbtn-rename", classes="footer-pill")
             yield Button(t("fbtn_delete"), id="fbtn-delete", classes="footer-pill")
+            yield Button(t("fbtn_sort"), id="fbtn-sort", classes="footer-pill")
             yield Button(t("fbtn_devices"), id="fbtn-devices", classes="footer-pill")
             yield Button(t("fbtn_disconnect"), id="fbtn-disconnect", classes="footer-pill")
             yield Button(t("fbtn_refresh"), id="fbtn-refresh", classes="footer-pill")
@@ -54,6 +55,7 @@ class FooterBar(Static):
             "#fbtn-mkdir": "fbtn_mkdir",
             "#fbtn-rename": "fbtn_rename",
             "#fbtn-delete": "fbtn_delete",
+            "#fbtn-sort": "fbtn_sort",
             "#fbtn-devices": "fbtn_devices",
             "#fbtn-disconnect": "fbtn_disconnect",
             "#fbtn-refresh": "fbtn_refresh",
@@ -88,14 +90,14 @@ class FooterBar(Static):
 
         if count > 0:
             badge.update(t("batch_badge", count=count, size=total_size_str))
-            badge.styles.display = "block"
+            badge.display = True
             btn_dl.label = t("fbtn_batch_dl", count=count)
             btn_del.label = t("fbtn_batch_del", count=count)
-            batch_actions.styles.display = "block"
+            batch_actions.display = True
         else:
             badge.update("")
-            badge.styles.display = "none"
-            batch_actions.styles.display = "none"
+            badge.display = False
+            batch_actions.display = False
 
     def start_progress(self, total: float = 100, label: str = "") -> None:
         """Displays and initializes the footer progress bar for file transfer operations."""

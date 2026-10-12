@@ -177,8 +177,47 @@ class BatchDeleteModal(ModalScreen[bool]):
 
 
 # -----------------------------------------------------------------
-# 4. Download / Pull Modal
 # -----------------------------------------------------------------
+# 4. Folder Picker Utility & Download / Pull Modal
+# -----------------------------------------------------------------
+def pick_folder_gui(initial_dir: str = "") -> Optional[str]:
+    """Opens a native graphical OS folder picker dialog to select a directory on PC."""
+    import sys, subprocess, os
+    if sys.platform == "win32":
+        try:
+            init_clean = initial_dir.replace("'", "''") if initial_dir else ""
+            ps_script = (
+                "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
+                "$f = New-Object System.Windows.Forms.FolderBrowserDialog; "
+                "$f.Description = 'Seleziona la cartella di destinazione per salvare i file'; "
+                + (f"$f.SelectedPath = '{init_clean}'; " if init_clean else "")
+                + "if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { Write-Output $f.SelectedPath }"
+            )
+            creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            res = subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+                capture_output=True,
+                text=True,
+                creationflags=creation_flags,
+            )
+            out = res.stdout.strip()
+            return out if out and os.path.isdir(out) else None
+        except Exception:
+            return None
+    else:
+        try:
+            import tkinter
+            from tkinter import filedialog
+            root = tkinter.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            folder = filedialog.askdirectory(initialdir=initial_dir or str(Path.home()))
+            root.destroy()
+            return folder if folder and os.path.isdir(folder) else None
+        except Exception:
+            return None
+
+
 class DownloadModal(ModalScreen[Optional[str]]):
     """Modal to download selected file or folder from Phone to PC."""
 
@@ -196,7 +235,9 @@ class DownloadModal(ModalScreen[Optional[str]]):
                 f"Cartella di destinazione sul tuo PC:",
                 classes="modal-subtitle",
             )
-            yield Input(value=self.default_pc_dir, id="input-pc-dest")
+            with Horizontal(classes="folder-input-row"):
+                yield Input(value=self.default_pc_dir, id="input-pc-dest")
+                yield Button(t("btn_browse_pc"), id="btn-browse-pc-gui", variant="primary")
             with Horizontal(classes="button-bar"):
                 yield Button(t("btn_download_now"), id="btn-submit", variant="primary")
                 yield Button(t("btn_cancel"), id="btn-cancel")
@@ -205,6 +246,11 @@ class DownloadModal(ModalScreen[Optional[str]]):
         if event.button.id == "btn-submit":
             val = self.query_one("#input-pc-dest", Input).value.strip()
             self.dismiss(val if val else None)
+        elif event.button.id == "btn-browse-pc-gui":
+            cur_val = self.query_one("#input-pc-dest", Input).value.strip() or self.default_pc_dir
+            chosen = pick_folder_gui(cur_val)
+            if chosen:
+                self.query_one("#input-pc-dest", Input).value = chosen
         else:
             self.dismiss(None)
 
@@ -236,7 +282,9 @@ class BatchDownloadModal(ModalScreen[Optional[str]]):
                 f"Cartella di destinazione sul PC:",
                 classes="modal-subtitle",
             )
-            yield Input(value=self.default_pc_dir, id="input-pc-dest")
+            with Horizontal(classes="folder-input-row"):
+                yield Input(value=self.default_pc_dir, id="input-pc-dest")
+                yield Button(t("btn_browse_pc"), id="btn-browse-pc-gui", variant="primary")
             with Horizontal(classes="button-bar"):
                 yield Button(t("btn_download_all", count=len(self.entries)), id="btn-submit", variant="primary")
                 yield Button(t("btn_cancel"), id="btn-cancel")
@@ -252,6 +300,11 @@ class BatchDownloadModal(ModalScreen[Optional[str]]):
         if event.button.id == "btn-submit":
             val = self.query_one("#input-pc-dest", Input).value.strip()
             self.dismiss(val if val else None)
+        elif event.button.id == "btn-browse-pc-gui":
+            cur_val = self.query_one("#input-pc-dest", Input).value.strip() or self.default_pc_dir
+            chosen = pick_folder_gui(cur_val)
+            if chosen:
+                self.query_one("#input-pc-dest", Input).value = chosen
         else:
             self.dismiss(None)
 
@@ -301,7 +354,9 @@ class DownloadDestinationModal(ModalScreen[Optional[Tuple[str, str, Optional[Adb
             # Section PC Destination
             with Vertical(id="section-pc-dest"):
                 yield Static(t("transfer_pc_dir"), classes="meta-key")
-                yield Input(value=self.default_pc_dir, id="input-pc-dest")
+                with Horizontal(classes="folder-input-row"):
+                    yield Input(value=self.default_pc_dir, id="input-pc-dest")
+                    yield Button(t("btn_browse_pc"), id="btn-browse-pc-gui", variant="primary")
                 with Horizontal(classes="quick-folders-bar"):
                     yield Button("📥 Downloads", id="btn-q-pc-dl")
                     yield Button("🖥️ Desktop", id="btn-q-pc-dt")
@@ -320,7 +375,9 @@ class DownloadDestinationModal(ModalScreen[Optional[Tuple[str, str, Optional[Adb
                             t_lbl.append(f"({d.serial})", style="dim")
                             yield ListItem(Label(t_lbl), id=f"target-dev-{idx}")
                     yield Static(t("transfer_remote_dir"), classes="meta-key")
-                    yield Input(value="/sdcard/Download", id="input-remote-dest")
+                    with Horizontal(classes="folder-input-row"):
+                        yield Input(value="/sdcard/Download", id="input-remote-dest")
+                        yield Button(t("btn_new_folder"), id="btn-d2d-mkdir")
                     with Horizontal(classes="quick-folders-bar"):
                         yield Button("📥 /sdcard/Download", id="btn-q-dev-dl")
                         yield Button("📱 /sdcard", id="btn-q-dev-sd")
@@ -356,6 +413,17 @@ class DownloadDestinationModal(ModalScreen[Optional[Tuple[str, str, Optional[Adb
                 self.query_one("#btn-choice-pc", Button).variant = "default"
                 self.query_one("#section-pc-dest").display = False
                 self.query_one("#section-device-dest").display = True
+        elif btn_id == "btn-browse-pc-gui":
+            cur_val = self.query_one("#input-pc-dest", Input).value.strip() or self.default_pc_dir
+            chosen = pick_folder_gui(cur_val)
+            if chosen:
+                self.query_one("#input-pc-dest", Input).value = chosen
+        elif btn_id == "btn-d2d-mkdir":
+            def on_created_folder(folder_name: Optional[str]) -> None:
+                if folder_name:
+                    cur = self.query_one("#input-remote-dest", Input).value.rstrip("/")
+                    self.query_one("#input-remote-dest", Input).value = f"{cur}/{folder_name.strip()}"
+            self.app.push_screen(CreateFolderModal(), on_created_folder)
         elif btn_id == "btn-q-pc-dl":
             self.query_one("#input-pc-dest", Input).value = str(Path.home() / "Downloads")
         elif btn_id == "btn-q-pc-dt":
@@ -803,3 +871,53 @@ class ColumnWidthsModal(ModalScreen[Optional[dict]]):
             self.dismiss(self.widths)
         else:
             self.dismiss(None)
+
+
+# -----------------------------------------------------------------
+# 14. Sort Selection Modal
+# -----------------------------------------------------------------
+class SortModal(ModalScreen[Optional[str]]):
+    """Modal allowing the user to pick sorting criterion (Name, Size, Type, Date, Perms) and invert order."""
+
+    def __init__(self, current_sort: str = "name", is_reverse: bool = False, **kwargs):
+        super().__init__(**kwargs)
+        self.current_sort = current_sort
+        self.is_reverse = is_reverse
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-dialog"):
+            yield Static("🔄 Ordinamento File e Cartelle", classes="modal-title")
+            order_name = t("order_desc") if self.is_reverse else t("order_asc")
+            yield Static(
+                f"Ordinamento attuale: [bold #7dcfff]{self.current_sort.upper()}[/] ({order_name})\n"
+                f"Scegli il criterio per ordinare i file nella tabella:",
+                classes="modal-subtitle",
+            )
+            with Vertical(classes="dialog-options-col"):
+                yield Button("🔤 Ordina per Nome", id="btn-sort-name", classes="btn-dialog-choice")
+                yield Button("⚖️ Ordina per Dimensione", id="btn-sort-size", classes="btn-dialog-choice")
+                yield Button("📁 Ordina per Tipo di File", id="btn-sort-type", classes="btn-dialog-choice")
+                yield Button("🕒 Ordina per Data di Modifica", id="btn-sort-modified", classes="btn-dialog-choice")
+                yield Button("🔒 Ordina per Permessi", id="btn-sort-perms", classes="btn-dialog-choice")
+                yield Button(f"🔄 Inverti Direzione (Attuale: {order_name})", id="btn-sort-invert", classes="btn-dialog-choice", variant="primary")
+
+            with Horizontal(classes="button-bar"):
+                yield Button(t("btn_close"), id="btn-cancel")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        btn_id = event.button.id
+        if btn_id == "btn-sort-name":
+            self.dismiss("name")
+        elif btn_id == "btn-sort-size":
+            self.dismiss("size")
+        elif btn_id == "btn-sort-type":
+            self.dismiss("type")
+        elif btn_id == "btn-sort-modified":
+            self.dismiss("modified")
+        elif btn_id == "btn-sort-perms":
+            self.dismiss("perms")
+        elif btn_id == "btn-sort-invert":
+            self.dismiss("invert")
+        else:
+            self.dismiss(None)
+

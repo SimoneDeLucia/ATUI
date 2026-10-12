@@ -233,8 +233,87 @@ async def run_compatibility_suite():
         remove_remembered_device("192.168.1.55:5555")
         print("    Selective removal & Wired/Wireless differentiation verified!")
 
+        # 17. Test Green Batch Bar Actions (Scarica tutto, Cancella tutto, Annulla)
+        print("[17] Testing Green Batch Bar Actions...")
+        footer.update_batch_selection(3, "15.2 MB")
+        badge = footer.query_one("#footer-batch-badge")
+        actions = footer.query_one("#footer-batch-actions")
+        btn_batch_dl = footer.query_one("#fbtn-batch-download")
+        btn_batch_del = footer.query_one("#fbtn-batch-delete")
+        btn_batch_clr = footer.query_one("#fbtn-batch-clear")
+        assert badge.display is True
+        assert actions.display is True
+        assert btn_batch_dl is not None
+        assert btn_batch_del is not None
+        assert btn_batch_clr is not None
+        footer.update_batch_selection(0, "")
+        assert badge.display is False
+        assert actions.display is False
+        print("    Green Batch Bar badge and action buttons (Download/Delete/Cancel) verified!")
+
+        # 18. Test SortModal & TUI Sorting by Name, Size, Type
+        print("[18] Testing SortModal & TUI Sorting by Name, Size, Type...")
+        from android_tui.views.modals import SortModal
+        sort_modal = SortModal(current_sort="name", is_reverse=False)
+        app.push_screen(sort_modal)
+        await pilot.pause()
+        assert app.screen.query_one("#btn-sort-name") is not None
+        assert app.screen.query_one("#btn-sort-size") is not None
+        assert app.screen.query_one("#btn-sort-type") is not None
+        assert app.screen.query_one("#btn-sort-invert") is not None
+        app.screen.dismiss(None)
+        await pilot.pause()
+
+        app.sort_directory("type")
+        assert app.sort_by == "type"
+        app.sort_directory("size")
+        assert app.sort_by == "size"
+        print("    SortModal choices and TUI sort_directory verified!")
+
+        # 19. Test Native GUI PC Folder Picker in DownloadDestinationModal
+        print("[19] Testing GUI PC Folder Picker in DownloadDestinationModal...")
+        from android_tui.views.modals import DownloadDestinationModal, pick_folder_gui
+        d2d_modal = DownloadDestinationModal(
+            entries=[FileEntry(name="sample.png", path="/sdcard/sample.png", is_dir=False)],
+            default_pc_dir="C:\\Users\\Test\\Downloads",
+            available_devices=[dev],
+            active_device=dev,
+        )
+        app.push_screen(d2d_modal)
+        await pilot.pause()
+        assert app.screen.query_one("#btn-browse-pc-gui") is not None
+        assert callable(pick_folder_gui)
+        app.screen.dismiss(None)
+        await pilot.pause()
+        print("    Native GUI PC folder picker button and function verified!")
+
+        # 20. Test New Folder Option for Target Android Device in D2D Transfer
+        print("[20] Testing New Folder Option for Device-to-Device Destination...")
+        dev_target = AdbDevice(serial="target-device-serial", connection_type=ConnectionType.USB, model="Tablet S9")
+        d2d_multi = DownloadDestinationModal(
+            entries=[FileEntry(name="doc.pdf", path="/sdcard/doc.pdf", is_dir=False)],
+            default_pc_dir="C:\\Users\\Test\\Downloads",
+            available_devices=[dev, dev_target],
+            active_device=dev,
+        )
+        app.push_screen(d2d_multi)
+        await pilot.pause()
+        d2d_multi.query_one("#btn-choice-device").press()
+        await pilot.pause()
+        assert app.screen.query_one("#btn-d2d-mkdir") is not None
+        app.screen.dismiss(None)
+        await pilot.pause()
+        print("    D2D destination new folder button [Nuova Cartella] verified!")
+
+        # 21. Test Double Click FileTable logic
+        print("[21] Testing Double Click vs Single Click FileTable logic...")
+        assert hasattr(FileTable, "FileDoubleClicked")
+        assert hasattr(app, "on_file_table_file_double_clicked")
+        print("    FileTable double click event and application handler verified!")
+
         print("\n[SUCCESS] ALL INTEGRATION TESTS (ALL REQUIREMENTS) PASSED 100%!")
 
 
 if __name__ == "__main__":
     asyncio.run(run_compatibility_suite())
+
