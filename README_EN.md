@@ -77,15 +77,33 @@
 
 ## 🚀 Installation & Getting Started
 
-### 1. Requirements
+### ⚡ Method 1: Fast Windows Install (PowerShell One-Liner)
+Run the following in **PowerShell**:
+```powershell
+irm https://raw.githubusercontent.com/SimoneDeLucia/ATUI/main/installer/install.ps1 | iex
+```
+
+---
+
+### 📦 Method 2: Direct Windows Installer (.msi)
+1. Download the official installer from [GitHub Releases](https://github.com/SimoneDeLucia/ATUI/releases):
+   👉 **[Download AndroidTUI-Setup.msi](https://github.com/SimoneDeLucia/ATUI/releases/latest/download/AndroidTUI-Setup.msi)**
+2. Double-click the `.msi` file. The wizard automatically configures:
+   - AndroidTUI files in `Program Files`.
+   - Global `atui` command in system `PATH`.
+   - Official Google ADB USB Drivers and Platform-Tools.
+
+---
+
+### 🐍 Method 3: Manual Python pip Install
+#### Requirements
 - **Python 3.10+**
 - **Android Debug Bridge (`adb`)**: included with Android Studio or standalone [SDK Platform Tools](https://developer.android.com/tools/releases/platform-tools).
 - **FFmpeg** (optional, recommended for MP4 video thumbnail previews).
 
-### 2. Install Package
 ```bash
-git clone https://github.com/SiMonee/AndroidTUI.git
-cd AndroidTUI
+git clone https://github.com/SimoneDeLucia/ATUI.git
+cd ATUI
 pip install -e .
 ```
 

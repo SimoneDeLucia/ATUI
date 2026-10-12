@@ -79,13 +79,33 @@
 
 ## 🚀 Requisiti e Installazione
 
-### 1. Prerequisiti
+### ⚡ Metodo 1: Installazione Rapida Windows (PowerShell One-Liner)
+Apri **PowerShell** e incolla questo comando per scaricare e installare automaticamente l'ultima versione:
+```powershell
+irm https://raw.githubusercontent.com/SimoneDeLucia/ATUI/main/installer/install.ps1 | iex
+```
+
+---
+
+### 📦 Metodo 2: Windows Installer (.msi) Diretto
+1. Scarica l'installer ufficiale pronto all'uso dalle [Releases GitHub](https://github.com/SimoneDeLucia/ATUI/releases):
+   👉 **[Download AndroidTUI-Setup.msi](https://github.com/SimoneDeLucia/ATUI/releases/latest/download/AndroidTUI-Setup.msi)**
+2. Fai doppio click sul file `.msi` scaricato. L'installer configurerà automaticamente:
+   - I file applicativi di ATUI in `Program Files`.
+   - Il comando globale `atui` nel `PATH` di sistema.
+   - I driver Google ADB USB ufficiali e i Platform-Tools necessari.
+
+---
+
+### 🐍 Metodo 3: Installazione Manuale via Python pip
+
+#### Prerequisiti
 - **Python 3.10+** installato sul sistema.
 - **Android Debug Bridge (`adb`)**:
-  - Incluso con Android Studio oppure scaricabile separatamente come [SDK Platform Tools](https://developer.android.com/tools/releases/platform-tools).
-  - Su Windows, AndroidTUI cerca automaticamente `adb.exe` in `C:\platform-tools\`, nel PATH di sistema e nelle cartelle standard.
+  - Incluso con Android Studio o scaricabile da [SDK Platform Tools](https://developer.android.com/tools/releases/platform-tools).
+  - Su Windows, AndroidTUI cerca automaticamente `adb.exe` in `C:\platform-tools\`, nel PATH e nelle directory standard.
 
-### 2. Installazione delle dipendenze
+#### Installazione delle dipendenze
 Dalla cartella del progetto:
 ```bash
 pip install -r requirements.txt
