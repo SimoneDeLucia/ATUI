@@ -41,11 +41,16 @@ class BrowserView(Container):
         with Vertical(id="preview-pane", classes="pane"):
             yield Static(" 📄 Anteprima & Dettagli ", id="preview-pane-title", classes="meta-key")
             with VerticalScroll(id="preview-scroll"):
+                yield Static(id="preview-image")
                 yield Static("Nessun elemento selezionato.", id="preview-body")
 
     def on_mount(self) -> None:
         table = self.query_one("#current-table", DataTable)
         table.add_columns("Nome", "Dimensione", "Modificato", "Permessi")
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        """Mouse click on parent directory item navigates to parent directory."""
+        self.app.action_go_parent()
 
     def update_browser(
         self,
@@ -53,15 +58,17 @@ class BrowserView(Container):
         current_entries: List[FileEntry],
         parent_path: str,
         parent_entries: List[FileEntry],
+        selected_paths: Optional[set] = None,
     ) -> None:
         self.current_path = current_path
         self.current_entries = current_entries
         self.parent_path = parent_path
         self.parent_entries = parent_entries
+        selected_set = selected_paths or set()
 
         # Update Titles
         self.query_one("#current-pane-title", Static).update(f" 📂 Contenuto: {current_path} ({len(current_entries)}) ")
-        self.query_one("#parent-pane-title", Static).update(f" 📁 Genitore: {parent_path} ")
+        self.query_one("#parent-pane-title", Static).update(f" 📁 Genitore: {parent_path} (Clicca per salire) ")
 
         # Update Parent List (Left Pane)
         parent_list = self.query_one("#parent-list", ListView)
@@ -86,8 +93,13 @@ class BrowserView(Container):
             icon = get_icon(entry.category)
             color = get_color(entry.category)
 
-            # Styled Name
+            # Styled Name with selection checkbox indicator
             name_text = Text()
+            if entry.path in selected_set:
+                name_text.append("[✓] ", style="bold #73daca")
+            else:
+                name_text.append("[ ] ", style="dim #565f89")
+
             name_text.append(f"{icon} ", style=color)
             name_text.append(entry.name, style=f"bold {color}" if entry.is_dir else color)
 
@@ -107,16 +119,36 @@ class BrowserView(Container):
         else:
             self.set_selected_entry(None)
 
-    def set_selected_entry(self, entry: Optional[FileEntry], preview_text: Optional[str] = None) -> None:
+    def set_selected_entry(
+        self,
+        entry: Optional[FileEntry],
+        preview_text: Optional[str] = None,
+        image_render: Optional[Text] = None,
+        image_dim: Optional[str] = None,
+    ) -> None:
         self.selected_entry = entry
+        preview_img = self.query_one("#preview-image", Static)
         preview_body = self.query_one("#preview-body", Static)
 
         if not entry:
+            preview_img.update("")
+            preview_img.display = False
             preview_body.update("[dim]Cartella vuota o nessun elemento selezionato.[/]")
             return
 
         icon = get_icon(entry.category)
         color = get_color(entry.category)
+
+        # Handle Image Preview Pane
+        if entry.category == FileCategory.IMAGE:
+            preview_img.display = True
+            if image_render is not None:
+                preview_img.update(image_render)
+            else:
+                preview_img.update("[dim #bb9af7]🖼️  Caricamento anteprima dal telefono...[/]")
+        else:
+            preview_img.update("")
+            preview_img.display = False
 
         # Build formatted details
         markup = []
@@ -126,7 +158,11 @@ class BrowserView(Container):
         markup.append(f"[dim]{safe_path}[/]\n")
 
         markup.append(f"[bold #7dcfff]Tipo:[/] {entry.category.value.capitalize()}")
-        markup.append(f"[bold #7dcfff]Dimensione:[/] {entry.formatted_size} ({entry.size:,} byte)" if not entry.is_dir else "[bold #7dcfff]Tipo:[/] Cartella di sistema/utente")
+        markup.append(
+            f"[bold #7dcfff]Dimensione:[/] {entry.formatted_size} ({entry.size:,} byte)"
+            if not entry.is_dir
+            else "[bold #7dcfff]Tipo:[/] Cartella di sistema/utente"
+        )
         markup.append(f"[bold #7dcfff]Permessi:[/] [dim]{escape(entry.permissions or 'sconosciuti')}[/]")
         markup.append(f"[bold #7dcfff]Data:[/] [dim]{escape(entry.date_str or 'sconosciuta')}[/]")
 
@@ -136,15 +172,15 @@ class BrowserView(Container):
         markup.append("\n" + "─" * 28 + "\n")
 
         if entry.is_dir:
-            markup.append("[#73daca]Premi [bold]\\[Enter][/] o freccia destra per esplorare questa cartella.[/]")
+            markup.append("[#73daca]Premi [bold]\\[Enter][/] o doppio click per esplorare questa cartella.[/]")
         else:
-            markup.append("[bold #7aa2f7]Anteprima & Dettagli:[/\n]")
+            markup.append("[bold #7aa2f7]Dettagli Contenuto:[/\n]")
             if entry.category == FileCategory.IMAGE:
-                markup.append("[#bb9af7]🖼️ File Immagine Android[/]")
+                markup.append("[#bb9af7]🖼️  Immagine visualizzata in anteprima sopra[/]")
                 markup.append(f"[#c0caf5]Formato:[/] [bold #7dcfff]{entry.extension.upper() or 'IMG'}[/]")
-                markup.append(f"[#c0caf5]Dimensione:[/] {entry.formatted_size}")
-                markup.append("[dim]Visualizzatore grafico non supportato direttamente nel terminale.[/]")
-                markup.append("[bold #73daca]Premi \\[d\\] per scaricare l'immagine sul PC ed aprirla![/]")
+                if image_dim:
+                    markup.append(f"[#c0caf5]Risoluzione:[/] [bold #73daca]{image_dim}[/]")
+                markup.append("[bold #73daca]Premi \\[d\\] per scaricare il file originale sul PC.[/]")
             elif entry.category == FileCategory.VIDEO:
                 markup.append("[#b4f9f8]🎬 File Video[/]")
                 markup.append(f"[#c0caf5]Formato:[/] [bold #7dcfff]{entry.extension.upper() or 'VIDEO'}[/]")
@@ -176,9 +212,11 @@ class BrowserView(Container):
                 markup.append("[bold #73daca]Premi \\[d\\] per scaricare il file sul PC.[/]")
 
         markup.append("\n" + "─" * 28 + "\n")
-        markup.append("[bold #7dcfff]Azioni rapide:[/\n]")
+        markup.append("[bold #7dcfff]Azioni rapide & Mouse:[/\n]")
         markup.append(" • [bold #73daca]\\[d][/] Scarica sul PC")
+        markup.append(" • [bold #73daca]\\[␣ Spazio][/] Seleziona per download batch")
         markup.append(" • [bold #e0af68]\\[n][/] Rinomina file")
         markup.append(" • [bold #f7768e]\\[x][/] Elimina dal telefono")
 
         preview_body.update("\n".join(markup))
+

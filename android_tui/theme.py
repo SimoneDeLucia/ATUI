@@ -157,25 +157,78 @@ Screen {
 
 #footer-bar {
     dock: bottom;
-    height: 3;
+    height: 4;
     background: #16161e;
     border-top: heavy #3d59a1;
-    layout: horizontal;
+    layout: vertical;
     padding: 0 1;
+}
+
+#footer-buttons-row {
+    height: 1;
+    layout: horizontal;
     align: left middle;
 }
 
-#footer-keys {
-    width: 1fr;
+.footer-pill {
+    min-width: 6;
+    height: 1;
+    margin-right: 1;
+    padding: 0 1;
+    background: #24283b;
     color: #7aa2f7;
+    border: none;
+    text-style: bold;
+}
+
+.footer-pill:hover {
+    background: #7dcfff;
+    color: #1a1b26;
+}
+
+#footer-status-row {
+    height: 1;
+    layout: horizontal;
+    align: left middle;
+}
+
+#footer-batch-badge {
+    background: #73daca;
+    color: #1a1b26;
+    text-style: bold;
+    padding: 0 1;
+    margin-right: 1;
+    display: none;
 }
 
 #footer-toast {
     width: auto;
     color: #73daca;
     text-style: bold;
-    padding: 0 1;
 }
+
+#preview-image {
+    width: 100%;
+    height: auto;
+    padding: 0;
+    margin-bottom: 1;
+}
+
+.btn-remembered {
+    width: 100%;
+    margin-bottom: 1;
+    background: #2f354f;
+    color: #7dcfff;
+    border: round #3d59a1;
+    text-style: bold;
+}
+
+.btn-remembered:hover {
+    background: #73daca;
+    color: #1a1b26;
+    border: round #73daca;
+}
+
 
 /* Browser 3-Column Miller Panes */
 #miller-container {

@@ -180,13 +180,14 @@ class AdbManager:
         # Battery
         code, out, _ = self.run_cmd(["shell", "dumpsys", "battery"], target_serial=dev.serial)
         if code == 0:
-            for line in out.splitlines():
-                if "level:" in line:
+            for raw_line in out.splitlines():
+                line = raw_line.strip()
+                if line.startswith("level:"):
                     try:
                         dev.battery_level = int(line.split(":", 1)[1].strip())
                     except ValueError:
                         pass
-                elif "status:" in line:
+                elif line.startswith("status:"):
                     status_code = line.split(":", 1)[1].strip()
                     if status_code == "2":
                         dev.battery_status = "In carica"
@@ -194,6 +195,7 @@ class AdbManager:
                         dev.battery_status = "In scarica"
                     elif status_code == "5":
                         dev.battery_status = "Carica completa"
+
 
         # Storage
         code, out, _ = self.run_cmd(["shell", "df", "-h", "/sdcard"], target_serial=dev.serial)

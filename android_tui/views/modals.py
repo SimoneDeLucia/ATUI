@@ -12,7 +12,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Static, Input, Button, ListView, ListItem, Label
 from rich.text import Text
 
-from ..models import AdbDevice, ConnectionType, DeviceState
+from ..models import AdbDevice, ConnectionType, DeviceState, FileEntry
 
 
 # -----------------------------------------------------------------
@@ -155,6 +155,54 @@ class DownloadModal(ModalScreen[Optional[str]]):
 
 
 # -----------------------------------------------------------------
+# 4b. Batch Download Modal
+# -----------------------------------------------------------------
+class BatchDownloadModal(ModalScreen[Optional[str]]):
+    """Modal to confirm batch downloading multiple selected files."""
+
+    def __init__(self, entries: List[FileEntry], default_pc_dir: str, **kwargs):
+        super().__init__(**kwargs)
+        self.entries = entries
+        self.default_pc_dir = default_pc_dir
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-dialog"):
+            yield Static("📥 Download Batch Multi-File (adb pull)", classes="modal-title")
+            total_bytes = sum(e.size for e in self.entries if not e.is_dir)
+            total_str = self._format_size(total_bytes)
+            names_preview = ", ".join(e.name for e in self.entries[:4])
+            if len(self.entries) > 4:
+                names_preview += f" ... e altri {len(self.entries) - 4} file"
+
+            yield Static(
+                f"Elementi selezionati per il download:\n"
+                f"[bold #7dcfff]{len(self.entries)} elementi[/] (totale: [bold #73daca]{total_str}[/])\n"
+                f"[dim]File: {names_preview}[/]\n\n"
+                f"Cartella di destinazione sul PC:",
+                classes="modal-subtitle",
+            )
+            yield Input(value=self.default_pc_dir, id="input-pc-dest")
+            with Horizontal(classes="button-bar"):
+                yield Button(f"Scarica Tutti ({len(self.entries)})", id="btn-submit", variant="primary")
+                yield Button("Annulla", id="btn-cancel")
+
+    def _format_size(self, size_bytes: int) -> str:
+        for unit in ["B", "KB", "MB", "GB"]:
+            if size_bytes < 1024.0:
+                return f"{size_bytes:.1f} {unit}"
+            size_bytes /= 1024.0
+        return f"{size_bytes:.1f} TB"
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-submit":
+            val = self.query_one("#input-pc-dest", Input).value.strip()
+            self.dismiss(val if val else None)
+        else:
+            self.dismiss(None)
+
+
+
+# -----------------------------------------------------------------
 # 5. Upload / Push Modal
 # -----------------------------------------------------------------
 class UploadModal(ModalScreen[Optional[str]]):
@@ -275,21 +323,28 @@ class HelpModal(ModalScreen[None]):
             yield Static("📖 Guida & Scorciatoie da Tastiera — AndroidTUI", classes="modal-title")
             help_content = (
                 "[bold #7dcfff]Navigazione File System:[/\n]"
-                "  • [bold #73daca]↑ / k[/]       Sposta cursore in alto\n"
-                "  • [bold #73daca]↓ / j[/]       Sposta cursore in basso\n"
-                "  • [bold #73daca]Enter / l[/]   Apri cartella selezionata\n"
-                "  • [bold #73daca]Backspace / h[/] Torna alla cartella superiore (genitore)\n\n"
+                "  • [bold #73daca]↑ / k[/]         Sposta cursore in alto\n"
+                "  • [bold #73daca]↓ / j[/]         Sposta cursore in basso\n"
+                "  • [bold #73daca]Enter / l[/]     Apri cartella selezionata\n"
+                "  • [bold #73daca]Backspace / h[/]   Torna alla cartella superiore (genitore)\n\n"
+                "[bold #7dcfff]Selezione Multipla & Batch:[/\n]"
+                "  • [bold #73daca]Spazio (Space)[/]  Seleziona/deseleziona file per download batch\n"
+                "  • [bold #73daca]a[/]             Seleziona / deseleziona tutti i file\n\n"
                 "[bold #7dcfff]Gestione File & Trasferimenti:[/\n]"
-                "  • [bold #73daca]d[/]           [bold]Scarica su PC (adb pull)[/]\n"
-                "  • [bold #73daca]u[/]           [bold]Carica dal PC al telefono (adb push)[/]\n"
-                "  • [bold #73daca]f[/]           Crea nuova cartella (mkdir)\n"
-                "  • [bold #73daca]n[/]           Rinomina elemento (mv)\n"
-                "  • [bold #73daca]x[/]           Elimina elemento (rm -rf)\n"
-                "  • [bold #73daca]r[/]           Ricarica la cartella corrente\n\n"
+                "  • [bold #73daca]d[/]             [bold]Scarica su PC (adb pull)[/] (singolo o batch)\n"
+                "  • [bold #73daca]u[/]             [bold]Carica dal PC al telefono (adb push)[/]\n"
+                "  • [bold #73daca]f[/]             Crea nuova cartella (mkdir)\n"
+                "  • [bold #73daca]n[/]             Rinomina elemento (mv)\n"
+                "  • [bold #73daca]x[/]             Elimina elemento (rm -rf)\n"
+                "  • [bold #73daca]r[/]             Ricarica la cartella corrente\n\n"
+                "[bold #7dcfff]Interazione con Mouse:[/\n]"
+                "  • Clicca sui pulsanti in basso nel footer per eseguire le azioni\n"
+                "  • Clicca sulle cartelle nel pannello 'Genitore' per navigare indietro\n"
+                "  • Clicca sulla barra superiore per gestire i dispositivi\n\n"
                 "[bold #7dcfff]Connessioni & Dispositivi:[/\n]"
-                "  • [bold #73daca]c[/]           Menu gestione dispositivi (USB & Wireless)\n"
-                "  • [bold #73daca]?[/]           Mostra questa schermata di aiuto\n"
-                "  • [bold #73daca]q[/]           Esci da AndroidTUI\n"
+                "  • [bold #73daca]c[/]             Menu gestione dispositivi (USB & Wireless)\n"
+                "  • [bold #73daca]?[/]             Mostra questa schermata di aiuto\n"
+                "  • [bold #73daca]q[/]             Esci da AndroidTUI\n"
             )
             yield Static(help_content, classes="modal-subtitle")
             with Horizontal(classes="button-bar"):
