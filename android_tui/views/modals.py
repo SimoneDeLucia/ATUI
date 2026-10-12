@@ -528,23 +528,28 @@ class DownloadDestinationModal(ModalScreen[Optional[Tuple[str, str, Optional[Adb
 # -----------------------------------------------------------------
 # 5. Upload / Push Modal
 # -----------------------------------------------------------------
-class UploadModal(ModalScreen[Optional[List[str]]]):
+class UploadModal(ModalScreen[Optional[Union[List[str], Tuple[List[str], str]]]]):
     """Revamped modal to upload local file(s) or folder(s) from PC to Phone,
-    supporting multiple selection, native file dialogs, and quoted paths from Explorer.
+    supporting destination path customization, subfolder navigation,
+    multiple selection, native file dialogs, and quoted paths from Explorer.
     """
 
-    def __init__(self, current_phone_dir: str, **kwargs):
+    def __init__(self, current_phone_dir: str, device: Optional[AdbDevice] = None, **kwargs):
         super().__init__(**kwargs)
-        self.current_phone_dir = current_phone_dir
+        self.current_phone_dir = current_phone_dir or "/sdcard/Download"
+        self.device = device
         self.selected_files: List[str] = []
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-dialog", id="upload-modal-dialog"):
             yield Static(t("modal_upload_title"), classes="modal-title")
-            yield Static(
-                t("modal_upload_subtitle", dir=self.current_phone_dir),
-                classes="modal-subtitle",
-            )
+            
+            yield Static(t("modal_upload_dest_label"), classes="meta-key")
+            with Horizontal(id="upload-dest-row", classes="folder-input-row"):
+                yield Button(f"📂 {self.current_phone_dir}", id="btn-dest-path", classes="dest-path-button")
+                yield Button(t("btn_change_dest"), id="btn-change-dest", variant="primary")
+
+            yield Static(t("modal_upload_src_label"), classes="meta-key")
             with Horizontal(classes="folder-input-row"):
                 yield Input(placeholder=t("modal_upload_placeholder"), id="input-pc-src")
                 yield Button(t("btn_add_paths"), id="btn-add-paths")
@@ -615,12 +620,33 @@ class UploadModal(ModalScreen[Optional[List[str]]]):
     def on_input_submitted(self, event: Input.Submitted) -> None:
         self._confirm_and_submit()
 
+    def _open_destination_picker(self) -> None:
+        def on_path_selected(target_path: Optional[str]) -> None:
+            if target_path:
+                self.current_phone_dir = target_path
+                self._update_dest_display()
+
+        dev = self.device or getattr(getattr(self.app, "adb", None), "active_device", None)
+        self.app.push_screen(
+            PathBreadcrumbsModal(current_path=self.current_phone_dir, device=dev),
+            on_path_selected,
+        )
+
+    def _update_dest_display(self) -> None:
+        try:
+            btn = self.query_one("#btn-dest-path", Button)
+            btn.label = f"📂 {self.current_phone_dir}"
+        except Exception:
+            pass
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id
         if btn_id == "btn-submit":
             self._confirm_and_submit()
         elif btn_id == "btn-cancel":
             self.dismiss(None)
+        elif btn_id in ("btn-dest-path", "btn-change-dest"):
+            self._open_destination_picker()
         elif btn_id == "btn-add-paths":
             inp = self.query_one("#input-pc-src", Input)
             val = inp.value.strip()
@@ -668,7 +694,7 @@ class UploadModal(ModalScreen[Optional[List[str]]]):
                     all_paths.append(c)
 
         if all_paths:
-            self.dismiss(all_paths)
+            self.dismiss((all_paths, self.current_phone_dir))
         else:
             self.dismiss(None)
 
@@ -853,6 +879,7 @@ class PathBreadcrumbsModal(ModalScreen[Optional[str]]):
         self.current_path = current_path or "/"
         self.device = device
         self.segments: List[Tuple[str, str]] = self._build_segments(self.current_path)
+        self.subfolder_items: List[Tuple[str, str]] = []
 
     def _build_segments(self, path: str) -> List[Tuple[str, str]]:
         clean = "/" + path.strip("/") if path.strip("/") else "/"
@@ -884,6 +911,30 @@ class PathBreadcrumbsModal(ModalScreen[Optional[str]]):
                         t_lbl.append(label, style="bold #c0caf5")
                     yield ListItem(Label(t_lbl), id=f"bc-item-{idx}")
 
+            # Child Subfolders Section (if any direct subdirectories exist)
+            child_dirs = []
+            try:
+                adb = getattr(self.app, "adb", None)
+                if adb:
+                    entries, _ = adb.list_directory(self.current_path)
+                    if entries:
+                        for e in entries:
+                            if e.is_dir and not e.name.startswith("."):
+                                child_dirs.append((f"📂 {e.name}", e.path))
+            except Exception:
+                pass
+            self.subfolder_items = child_dirs
+
+            if self.subfolder_items:
+                yield Static(f"[bold #7dcfff]{t('breadcrumb_subfolders_label')}[/]", classes="meta-key")
+                with ListView(id="subfolder-list"):
+                    for s_idx, (s_label, s_path) in enumerate(self.subfolder_items):
+                        t_sub = Text()
+                        t_sub.append("📁 ", style="bold #73daca")
+                        t_sub.append(s_label.replace("📂 ", ""), style="bold #c0caf5")
+                        t_sub.append(f" ({s_path})", style="dim")
+                        yield ListItem(Label(t_sub), id=f"subfolder-item-{s_idx}")
+
             # Quick Folders Jump Section (Download, sdcard, MicroSD, DCIM, Video)
             yield Static(f"[bold #7dcfff]{t('breadcrumb_quick_locations')}[/]", classes="meta-key")
             with Horizontal(classes="quick-folders-bar", id="quick-folders-bar"):
@@ -902,10 +953,19 @@ class PathBreadcrumbsModal(ModalScreen[Optional[str]]):
                 yield Button(t("btn_cancel"), id="btn-cancel")
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
+        lv_id = event.list_view.id
         idx = event.list_view.index
-        if idx is not None and 0 <= idx < len(self.segments):
+        if lv_id == "breadcrumb-list" and idx is not None and 0 <= idx < len(self.segments):
             _, target_path = self.segments[idx]
             self.dismiss(target_path)
+        elif lv_id == "subfolder-list" and idx is not None and 0 <= idx < len(self.subfolder_items):
+            _, target_path = self.subfolder_items[idx]
+            self.dismiss(target_path)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        val = event.value.strip()
+        if val:
+            self.dismiss(val)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id
@@ -927,13 +987,16 @@ class PathBreadcrumbsModal(ModalScreen[Optional[str]]):
             if input_val and input_val != self.current_path:
                 self.dismiss(input_val)
                 return
-            list_view = self.query_one("#breadcrumb-list", ListView)
-            idx = list_view.index
-            if idx is not None and 0 <= idx < len(self.segments):
-                _, target_path = self.segments[idx]
-                self.dismiss(target_path)
-            else:
-                self.dismiss(input_val if input_val else None)
+            try:
+                list_view = self.query_one("#breadcrumb-list", ListView)
+                idx = list_view.index
+                if idx is not None and 0 <= idx < len(self.segments):
+                    _, target_path = self.segments[idx]
+                    self.dismiss(target_path)
+                    return
+            except Exception:
+                pass
+            self.dismiss(input_val if input_val else self.current_path)
         else:
             self.dismiss(None)
 

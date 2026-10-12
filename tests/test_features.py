@@ -423,8 +423,15 @@ async def run_compatibility_suite():
         assert up_modal.query_one("#btn-browse-files-gui") is not None
         assert up_modal.query_one("#btn-browse-folder-gui") is not None
         assert up_modal.query_one("#btn-add-paths") is not None
+        assert up_modal.query_one("#btn-dest-path") is not None
+        assert up_modal.query_one("#btn-change-dest") is not None
         assert up_modal.query_one("#btn-submit") is not None
         assert up_modal.query_one("#btn-cancel") is not None
+
+        # Test modifying destination directory via PathBreadcrumbsModal integration
+        up_modal.current_phone_dir = "/sdcard/DCIM"
+        up_modal._update_dest_display()
+        assert "DCIM" in str(up_modal.query_one("#btn-dest-path", Button).label)
 
         # Add quoted path through input and add button
         up_modal.query_one("#input-pc-src", Input).value = '"C:\\mock\\file1.apk" "C:\\mock\\file2.apk"'
@@ -440,6 +447,16 @@ async def run_compatibility_suite():
         await pilot.pause()
         assert len(up_modal.selected_files) == 0
         assert up_modal.query_one("#upload-selected-container").display is False
+
+        # Test clicking #btn-change-dest pushes PathBreadcrumbsModal
+        up_modal.query_one("#btn-change-dest", Button).press()
+        await pilot.pause()
+        assert isinstance(app.screen, PathBreadcrumbsModal)
+        # Select quick folder e.g. /sdcard/DCIM
+        app.screen.query_one("#qf-dcim", Button).press()
+        await pilot.pause()
+        assert up_modal.current_phone_dir == "/sdcard/DCIM"
+        assert "/sdcard/DCIM" in str(up_modal.query_one("#btn-dest-path", Button).label)
 
         app.screen.dismiss(None)
         await pilot.pause()

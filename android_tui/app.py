@@ -906,16 +906,25 @@ class AndroidTuiApp(App):
 
     def action_upload_entry(self) -> None:
         """Pushes file(s) or folder(s) from PC to Phone via ADB push."""
-        def handle_upload(pc_files: Optional[Union[List[str], str]]) -> None:
-            if not pc_files:
+        def handle_upload(result: Any) -> None:
+            if not result:
                 return
+            if isinstance(result, tuple):
+                pc_files, phone_dest = result
+            else:
+                pc_files = result
+                phone_dest = self.current_path
+
             if isinstance(pc_files, str):
                 pc_files = parse_file_paths(pc_files)
             if not pc_files:
                 return
-            self._do_push_worker(pc_files, self.current_path)
+            self._do_push_worker(pc_files, phone_dest)
 
-        self.push_screen(UploadModal(current_phone_dir=self.current_path), handle_upload)
+        self.push_screen(
+            UploadModal(current_phone_dir=self.current_path, device=self.adb.active_device),
+            handle_upload,
+        )
 
     @work(thread=True)
     def _do_push_worker(self, pc_files: Union[List[str], str], phone_dest: str) -> None:
@@ -965,7 +974,7 @@ class AndroidTuiApp(App):
             self.app.call_from_thread(self.query_one(FooterBar).show_toast, toast_msg, success_count == 0)
 
         if success_count > 0:
-            self.load_directory(self.current_path)
+            self.load_directory(phone_dest)
 
     def action_create_folder(self) -> None:
         def handle_new_folder(folder_name: Optional[str]) -> None:

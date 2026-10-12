@@ -154,3 +154,33 @@ ModalScreen {
     height: auto;
     margin-bottom: 1;
 }
+
+.dest-path-button {
+    width: 1fr;
+    margin-right: 1;
+    background: #1a1b26;
+    color: #7dcfff;
+    border: tall #3b4261;
+    text-align: left;
+    text-style: bold;
+}
+
+.dest-path-button:hover {
+    border: tall #7dcfff;
+    background: #24283b;
+}
+
+.dest-path-button:focus {
+    border: tall #bb9af7;
+    background: #24283b;
+}
+
+#btn-change-dest {
+    min-width: 16;
+}
+
+#subfolder-list {
+    max-height: 5;
+    height: auto;
+    margin-bottom: 1;
+}
