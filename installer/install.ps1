@@ -26,7 +26,7 @@ function Show-Banner {
     Write-Host "   ==========================================================" -ForegroundColor Cyan
     Write-Host "      _   _____ _   _ ___ " -ForegroundColor Cyan
     Write-Host "     /_\ |_   _| | | |_ _|  Android Terminal User Interface" -ForegroundColor Cyan
-    Write-Host "    / _ \  | | | |_| || |   Versione: v1.0.0" -ForegroundColor Cyan
+    Write-Host "    / _ \  | | | |_| || |   Versione: v1.0.2" -ForegroundColor Cyan
     Write-Host "   /_/ \_\ |_|  \___/|___|  https://github.com/SimoneDeLucia/ATUI" -ForegroundColor Cyan
     Write-Host "   ==========================================================" -ForegroundColor Cyan
     Write-Host ""

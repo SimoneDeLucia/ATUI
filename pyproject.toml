@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "atui"
-version = "1.0.0"
+version = "1.0.2"
 description = "ATUI - Android Terminal User Interface"
 readme = "README.md"
 authors = [{ name = "Simone De Lucia" }]

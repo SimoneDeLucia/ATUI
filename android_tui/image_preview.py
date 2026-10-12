@@ -35,6 +35,27 @@ def get_cache_thumb_path(suffix: str = ".thumb") -> Path:
     return CACHE_DIR / f"current_preview{suffix}"
 
 
+def clear_preview_cache() -> None:
+    """Deletes all files and directories inside the preview cache directory,
+    and resets the in-memory thumbnail cache.
+    """
+    global _MEDIA_CACHE
+    _MEDIA_CACHE.clear()
+
+    try:
+        if CACHE_DIR.exists():
+            for item in CACHE_DIR.iterdir():
+                try:
+                    if item.is_file() or item.is_symlink():
+                        item.unlink()
+                    elif item.is_dir():
+                        shutil.rmtree(item, ignore_errors=True)
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+
 def render_image_halfblock(
     img: "Image.Image",
     max_width: int = 46,

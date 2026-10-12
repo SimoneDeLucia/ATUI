@@ -12,7 +12,7 @@
   <Product Id="*"
            Name="AndroidTUI"
            Language="1033"
-           Version="1.0.0"
+           Version="1.0.2"
            Manufacturer="AndroidTUI Team"
            UpgradeCode="{5D877A6C-32BD-4F71-B845-6677C1DE29A1}">
 

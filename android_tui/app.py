@@ -9,6 +9,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional, List, Any, Tuple, Union
 
+import atexit
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import DataTable
@@ -17,7 +18,7 @@ from textual import work
 from .adb import AdbManager, resolve_scrcpy_path
 from .models import AdbDevice, ConnectionType, DeviceState, FileEntry, FileCategory
 from .theme import CSS_FILES, is_text_previewable
-from .image_preview import get_file_thumbnail, load_media_thumbnail
+from .image_preview import get_file_thumbnail, load_media_thumbnail, clear_preview_cache, CACHE_DIR
 from .device_store import save_remembered_device, load_remembered_devices, clear_remembered_devices, remove_remembered_device
 from .views.header import HeaderBar
 from .views.footer import FooterBar
@@ -152,15 +153,33 @@ class AndroidTuiApp(App):
 
     def on_unmount(self) -> None:
         """Cleans up temporary preview and download caches from disk on exit."""
+        self._cleanup_all_caches()
+
+    @staticmethod
+    def _cleanup_all_caches() -> None:
         import tempfile
         import shutil
+
+        # 1. Clear image/media preview cache in ~/.cache/android_tui
+        clear_preview_cache()
+
+        # 2. Clear temporary preview and download directories
         cache_dirs = [
             Path(tempfile.gettempdir()) / "atui_preview_cache",
             Path(tempfile.gettempdir()) / "atui_download_cache",
+            CACHE_DIR,
         ]
         for cd in cache_dirs:
             if cd.exists():
                 try:
+                    for item in cd.iterdir():
+                        try:
+                            if item.is_file() or item.is_symlink():
+                                item.unlink()
+                            elif item.is_dir():
+                                shutil.rmtree(item, ignore_errors=True)
+                        except Exception:
+                            pass
                     shutil.rmtree(cd, ignore_errors=True)
                 except Exception:
                     pass
@@ -1265,14 +1284,11 @@ class AndroidTuiApp(App):
         self.push_screen(HelpModal())
 
     def action_quit_app(self) -> None:
-        import tempfile, shutil
-        try:
-            cache_dir = Path(tempfile.gettempdir()) / "atui_preview_cache"
-            if cache_dir.exists():
-                shutil.rmtree(cache_dir, ignore_errors=True)
-        except Exception:
-            pass
+        self._cleanup_all_caches()
         self.exit()
+
+
+atexit.register(AndroidTuiApp._cleanup_all_caches)
 
 
 def main() -> None:

@@ -14,14 +14,21 @@ import shutil
 import uuid
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT_DIR = SCRIPT_DIR.parent
+
 PRODUCT_NAME = "AndroidTUI"
-PRODUCT_VERSION = "1.0.0"
+try:
+    import sys
+    sys.path.insert(0, str(ROOT_DIR))
+    from android_tui import __version__ as PRODUCT_VERSION
+except Exception:
+    PRODUCT_VERSION = "1.0.2"
+
 MANUFACTURER = "AndroidTUI Team"
 PRODUCT_CODE = "{B7A75507-6B18-4EC7-827D-5B203E738123}"
 UPGRADE_CODE = "{5D877A6C-32BD-4F71-B845-6677C1DE29A1}"
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-ROOT_DIR = SCRIPT_DIR.parent
 DIST_DIR = SCRIPT_DIR / "dist"
 STAGING_DIR = SCRIPT_DIR / "staging"
 OUTPUT_MSI = DIST_DIR / "AndroidTUI-Setup.msi"

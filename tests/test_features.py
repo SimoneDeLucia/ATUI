@@ -461,8 +461,27 @@ async def run_compatibility_suite():
         finally:
             if tmp_f1.exists():
                 tmp_f1.unlink()
-            if tmp_f2.exists():
-                tmp_f2.unlink()
+        # 26. Test Preview Cache Cleanup on Exit
+        print("[26] Testing Preview Cache Cleanup on Exit...")
+        from android_tui.image_preview import CACHE_DIR, clear_preview_cache
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        test_cache_file = CACHE_DIR / "dummy_preview_test.thumb"
+        test_cache_file.write_text("thumb data", encoding="utf-8")
+        assert test_cache_file.exists()
+
+        temp_preview_dir = Path(tempfile.gettempdir()) / "atui_preview_cache"
+        temp_preview_dir.mkdir(parents=True, exist_ok=True)
+        test_temp_preview = temp_preview_dir / "preview_file.png"
+        test_temp_preview.write_text("dummy png", encoding="utf-8")
+        assert test_temp_preview.exists()
+
+        # Run _cleanup_all_caches()
+        AndroidTuiApp._cleanup_all_caches()
+
+        assert not test_cache_file.exists()
+        assert not test_temp_preview.exists()
+        assert not temp_preview_dir.exists()
+        print("    Preview cache cleanup on exit (both CACHE_DIR and tempdir) verified!")
 
         print("\n[SUCCESS] ALL INTEGRATION TESTS (ALL REQUIREMENTS) PASSED 100%!")
 

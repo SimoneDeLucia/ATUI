@@ -21,6 +21,21 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Determine Version and Tag
+        id: version_step
+        shell: powershell
+        run: |
+          if ($env:GITHUB_REF -like "refs/tags/v*") {
+            $tag = $env:GITHUB_REF_NAME
+            $ver = $tag.TrimStart("v")
+          } else {
+            $ver = (python -c "import android_tui; print(android_tui.__version__)").Trim()
+            $tag = "v$ver"
+          }
+          Write-Host "Detected version: $ver, tag: $tag"
+          "version=$ver" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
       - name: Build MSI Installer
         shell: powershell
         run: |
@@ -30,12 +45,13 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
         with:
-          tag_name: "v1.0.0"
-          name: "AndroidTUI v1.0.0 - Windows Installer Release"
+          tag_name: ${{ steps.version_step.outputs.tag }}
+          name: "AndroidTUI ${{ steps.version_step.outputs.tag }} - Windows Installer Release"
+          make_latest: true
           body: |
-            ## AndroidTUI - Release Ufficiale
+            ## AndroidTUI ${{ steps.version_step.outputs.tag }} - Release Ufficiale
 
-            Pacchetto d'installazione Windows (.msi) aggiornato automaticamente ad ogni push.
+            Pacchetto d'installazione Windows (.msi) aggiornato automaticamente.
 
             ### Caratteristiche del pacchetto:
             - **AndroidTUI-Setup.msi**: Installer autonomo con registrazione nel PATH, collegamenti Desktop e Menu Avvio.
