@@ -22,6 +22,11 @@ atui = "android_tui.app:main"
 android-tui = "android_tui.app:main"
 androidtui = "android_tui.app:main"
 
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["android_tui*"]
+exclude = ["FIX*", "GUIDE*", "installer*", "tests*", "tools*"]
+
 [tool.setuptools.package-data]
-android_tui = ["css/*.css", "css/*.tcss"]
+android_tui = ["css/*.css", "css/*.tcss", "locales/*.json", "bin/*"]
 
