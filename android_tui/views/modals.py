@@ -5,10 +5,13 @@ Download/Upload transfers, File management (rename/delete/new folder),
 Path Breadcrumbs navigation, Settings and Keyboard shortcuts Help.
 """
 import os
+import re
+import sys
+import subprocess
 from pathlib import Path
-from typing import List, Optional, Tuple, Any, Dict
+from typing import List, Optional, Tuple, Any, Dict, Union
 from textual.app import ComposeResult
-from textual.containers import Vertical, Horizontal
+from textual.containers import Vertical, Horizontal, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Static, Input, Button, ListView, ListItem, Label
 from rich.text import Text
@@ -211,6 +214,87 @@ def pick_folder_gui(initial_dir: str = "") -> Optional[str]:
             return folder if folder and os.path.isdir(folder) else None
         except Exception:
             return None
+
+
+def pick_files_gui(initial_dir: str = "") -> List[str]:
+    """Opens a native graphical OS file picker dialog to select one or multiple files on PC."""
+    if sys.platform == "win32":
+        try:
+            init_clean = initial_dir.replace("'", "''") if initial_dir else ""
+            ps_script = (
+                "[System.Reflection.Assembly]::LoadWithPartialName('System.Windows.Forms') | Out-Null; "
+                "$f = New-Object System.Windows.Forms.OpenFileDialog; "
+                "$f.Multiselect = $true; "
+                "$f.Title = 'Seleziona file da caricare'; "
+                + (f"$f.InitialDirectory = '{init_clean}'; " if init_clean else "")
+                + "if ($f.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { $f.FileNames }"
+            )
+            creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            res = subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+                capture_output=True,
+                text=True,
+                creationflags=creation_flags,
+            )
+            lines = [line.strip() for line in res.stdout.splitlines() if line.strip()]
+            return [p for p in lines if os.path.exists(p)]
+        except Exception:
+            return []
+    else:
+        try:
+            import tkinter
+            from tkinter import filedialog
+            root = tkinter.Tk()
+            root.withdraw()
+            root.attributes("-topmost", True)
+            files = list(filedialog.askopenfilenames(initialdir=initial_dir or str(Path.home())))
+            root.destroy()
+            return [f for f in files if os.path.exists(f)]
+        except Exception:
+            return []
+
+
+def parse_file_paths(raw_input: str) -> List[str]:
+    """Parses one or multiple local file/folder paths from input text,
+    stripping quotes (e.g. from Windows Explorer 'Copy as path'),
+    resolving newlines, semicolons, and space-separated quoted paths.
+    """
+    if not raw_input:
+        return []
+
+    text = raw_input.strip()
+    if not text:
+        return []
+
+    paths: List[str] = []
+
+    # If newlines exist, process line by line
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) > 1:
+        for line in lines:
+            line_clean = line.strip().strip('"\'').strip()
+            if line_clean:
+                paths.append(line_clean)
+        return list(dict.fromkeys(paths))
+
+    # If there are semicolons, split by semicolon
+    if ";" in text:
+        for part in text.split(";"):
+            clean = part.strip().strip('"\'').strip()
+            if clean:
+                paths.append(clean)
+        return list(dict.fromkeys(paths))
+
+    # Check for multiple quoted paths on a single line: e.g. "path1" "path2"
+    quoted_matches = re.findall(r'["\']([^"\']+)["\']', text)
+    if len(quoted_matches) >= 2:
+        return list(dict.fromkeys([m.strip() for m in quoted_matches if m.strip()]))
+    elif len(quoted_matches) == 1 and text.startswith(('"', "'")) and text.endswith(('"', "'")):
+        return [quoted_matches[0].strip()]
+
+    # Otherwise, clean single line stripped of quotes
+    clean = text.strip('"\'').strip()
+    return [clean] if clean else []
 
 
 class DownloadModal(ModalScreen[Optional[str]]):
@@ -444,29 +528,147 @@ class DownloadDestinationModal(ModalScreen[Optional[Tuple[str, str, Optional[Adb
 # -----------------------------------------------------------------
 # 5. Upload / Push Modal
 # -----------------------------------------------------------------
-class UploadModal(ModalScreen[Optional[str]]):
-    """Modal to upload local file from PC to Phone."""
+class UploadModal(ModalScreen[Optional[List[str]]]):
+    """Revamped modal to upload local file(s) or folder(s) from PC to Phone,
+    supporting multiple selection, native file dialogs, and quoted paths from Explorer.
+    """
 
     def __init__(self, current_phone_dir: str, **kwargs):
         super().__init__(**kwargs)
         self.current_phone_dir = current_phone_dir
+        self.selected_files: List[str] = []
 
     def compose(self) -> ComposeResult:
-        with Vertical(classes="modal-dialog"):
+        with Vertical(classes="modal-dialog", id="upload-modal-dialog"):
             yield Static(t("modal_upload_title"), classes="modal-title")
             yield Static(
                 t("modal_upload_subtitle", dir=self.current_phone_dir),
                 classes="modal-subtitle",
             )
-            yield Input(placeholder=r"C:\Users\...\file.apk", id="input-pc-src")
+            with Horizontal(classes="folder-input-row"):
+                yield Input(placeholder=t("modal_upload_placeholder"), id="input-pc-src")
+                yield Button(t("btn_add_paths"), id="btn-add-paths")
+
+            with Horizontal(id="upload-actions-bar"):
+                yield Button(t("btn_browse_files_gui"), id="btn-browse-files-gui", variant="primary")
+                yield Button(t("btn_browse_folder_gui"), id="btn-browse-folder-gui", variant="default")
+                yield Button("📥 Downloads", id="btn-q-ul-dl")
+                yield Button("🖥️ Desktop", id="btn-q-ul-dt")
+
+            with Vertical(id="upload-selected-container"):
+                with Horizontal(id="upload-selected-header"):
+                    yield Static(t("modal_upload_selected_label", count=0), id="upload-selected-title")
+                    yield Button(t("btn_clear_list"), id="btn-clear-selected", variant="error")
+                with VerticalScroll(id="upload-files-scroll"):
+                    yield Static("", id="upload-files-list-text")
+
             with Horizontal(classes="button-bar"):
                 yield Button(t("btn_upload_now"), id="btn-submit", variant="primary")
                 yield Button(t("btn_cancel"), id="btn-cancel")
 
+    def on_mount(self) -> None:
+        self._refresh_selected_display()
+
+    def _refresh_selected_display(self) -> None:
+        cont = self.query_one("#upload-selected-container")
+        if not self.selected_files:
+            cont.display = False
+            return
+        cont.display = True
+        title = self.query_one("#upload-selected-title", Static)
+        title.update(t("modal_upload_selected_label", count=len(self.selected_files)))
+
+        lines = []
+        for p in self.selected_files:
+            fname = os.path.basename(p) or p
+            if os.path.isdir(p):
+                lines.append(f"[bold #7dcfff]📁 {fname}[/] [dim]({p})[/]")
+            else:
+                sz_str = ""
+                try:
+                    if os.path.exists(p):
+                        sz = os.path.getsize(p)
+                        sz_str = self._format_size(sz)
+                except Exception:
+                    pass
+                sz_part = f" [dim]({sz_str})[/]" if sz_str else ""
+                lines.append(f"[bold #73daca]📄 {fname}[/]{sz_part} [dim]— {p}[/]")
+        self.query_one("#upload-files-list-text", Static).update("\n".join(lines))
+
+    def _format_size(self, size_bytes: int) -> str:
+        for unit in ["B", "KB", "MB", "GB"]:
+            if size_bytes < 1024.0:
+                return f"{size_bytes:.1f} {unit}"
+            size_bytes /= 1024.0
+        return f"{size_bytes:.1f} TB"
+
+    def _add_paths(self, new_paths: List[str]) -> None:
+        added = False
+        for p in new_paths:
+            c = p.strip().strip('"\'')
+            if c and c not in self.selected_files:
+                self.selected_files.append(c)
+                added = True
+        if added:
+            self._refresh_selected_display()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        self._confirm_and_submit()
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-submit":
-            val = self.query_one("#input-pc-src", Input).value.strip()
-            self.dismiss(val if val else None)
+        btn_id = event.button.id
+        if btn_id == "btn-submit":
+            self._confirm_and_submit()
+        elif btn_id == "btn-cancel":
+            self.dismiss(None)
+        elif btn_id == "btn-add-paths":
+            inp = self.query_one("#input-pc-src", Input)
+            val = inp.value.strip()
+            if val:
+                paths = parse_file_paths(val)
+                self._add_paths(paths)
+                inp.value = ""
+        elif btn_id == "btn-browse-files-gui":
+            cur = self.query_one("#input-pc-src", Input).value.strip().strip('"\'')
+            init_dir = cur if cur and os.path.isdir(cur) else (os.path.dirname(cur) if cur and os.path.isfile(cur) else "")
+            chosen = pick_files_gui(init_dir)
+            if chosen:
+                self._add_paths(chosen)
+        elif btn_id == "btn-browse-folder-gui":
+            cur = self.query_one("#input-pc-src", Input).value.strip().strip('"\'')
+            init_dir = cur if cur and os.path.isdir(cur) else ""
+            chosen = pick_folder_gui(init_dir)
+            if chosen:
+                self._add_paths([chosen])
+        elif btn_id == "btn-q-ul-dl":
+            dl_dir = str(Path.home() / "Downloads")
+            chosen = pick_files_gui(dl_dir)
+            if chosen:
+                self._add_paths(chosen)
+            else:
+                self.query_one("#input-pc-src", Input).value = dl_dir
+        elif btn_id == "btn-q-ul-dt":
+            dt_dir = str(Path.home() / "Desktop")
+            chosen = pick_files_gui(dt_dir)
+            if chosen:
+                self._add_paths(chosen)
+            else:
+                self.query_one("#input-pc-src", Input).value = dt_dir
+        elif btn_id == "btn-clear-selected":
+            self.selected_files.clear()
+            self._refresh_selected_display()
+
+    def _confirm_and_submit(self) -> None:
+        inp_val = self.query_one("#input-pc-src", Input).value.strip()
+        all_paths = list(self.selected_files)
+        if inp_val:
+            for p in parse_file_paths(inp_val):
+                c = p.strip().strip('"\'')
+                if c and c not in all_paths:
+                    all_paths.append(c)
+
+        if all_paths:
+            self.dismiss(all_paths)
         else:
             self.dismiss(None)
 

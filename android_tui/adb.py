@@ -457,10 +457,23 @@ class AdbManager:
 
     def push_file(self, local_src: str, remote_dest_dir: str, target_serial: Optional[str] = None) -> Tuple[bool, str]:
         """Pushes file or folder from PC to Phone using 'adb push'"""
+        local_src = local_src.strip().strip('"\'')
         if not os.path.exists(local_src):
             return False, f"File locale non trovato: {local_src}"
 
         if self.demo_mode:
+            fname = os.path.basename(local_src)
+            is_dir = os.path.isdir(local_src)
+            cat = FileCategory.FOLDER if is_dir else FileCategory.DEFAULT
+            size = os.path.getsize(local_src) if not is_dir else 0
+            entry = FileEntry(
+                name=fname,
+                path=f"{remote_dest_dir.rstrip('/')}/{fname}",
+                is_dir=is_dir,
+                size=size,
+                category=cat,
+            )
+            self._demo_fs.setdefault(remote_dest_dir, []).append(entry)
             return True, f"Caricato con successo in {remote_dest_dir} (Demo)"
 
         code, out, err = self.run_cmd(["push", local_src, remote_dest_dir], timeout=120, target_serial=target_serial)

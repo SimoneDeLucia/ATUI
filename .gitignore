@@ -18,3 +18,4 @@ installer/downloads/
 installer/staging/
 installer/dist/
 installer/*.msi
+desktop.ini

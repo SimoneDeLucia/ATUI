@@ -7,7 +7,7 @@ import os
 import sys
 import subprocess
 from pathlib import Path
-from typing import Optional, List, Any, Tuple
+from typing import Optional, List, Any, Tuple, Union
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -41,6 +41,8 @@ from .views.modals import (
     PathBreadcrumbsModal,
     ScrcpyModal,
     SortModal,
+    parse_file_paths,
+    pick_files_gui,
 )
 from .i18n import t, toggle_language, get_current_language, get_language_name
 
@@ -884,27 +886,66 @@ class AndroidTuiApp(App):
         self.app.call_from_thread(self._refresh_selection_state)
 
     def action_upload_entry(self) -> None:
-        """Pushes file from PC to Phone via ADB push"""
-        def handle_upload(pc_file: Optional[str]) -> None:
-            if not pc_file:
+        """Pushes file(s) or folder(s) from PC to Phone via ADB push."""
+        def handle_upload(pc_files: Optional[Union[List[str], str]]) -> None:
+            if not pc_files:
                 return
-            self._do_push_worker(pc_file, self.current_path)
+            if isinstance(pc_files, str):
+                pc_files = parse_file_paths(pc_files)
+            if not pc_files:
+                return
+            self._do_push_worker(pc_files, self.current_path)
 
         self.push_screen(UploadModal(current_phone_dir=self.current_path), handle_upload)
 
     @work(thread=True)
-    def _do_push_worker(self, pc_file: str, phone_dest: str) -> None:
-        fname = os.path.basename(pc_file)
+    def _do_push_worker(self, pc_files: Union[List[str], str], phone_dest: str) -> None:
+        if isinstance(pc_files, str):
+            pc_files = [pc_files]
+
+        cleaned_files = []
+        for p in pc_files:
+            c = p.strip().strip('"\'')
+            if c and os.path.exists(c):
+                cleaned_files.append(c)
+
+        if not cleaned_files:
+            self.app.call_from_thread(self.query_one(FooterBar).show_toast, t("toast_ul_no_valid_files"), True)
+            return
+
+        total = len(cleaned_files)
+        success_count = 0
+        last_msg = ""
+
         self.app.call_from_thread(
             self.query_one(FooterBar).start_progress,
-            1.0,
-            t("toast_ul_progress", name=fname),
+            float(total),
+            t("toast_ul_progress", name=os.path.basename(cleaned_files[0])),
         )
-        success, msg = self.adb.push_file(pc_file, phone_dest)
-        self.app.call_from_thread(self.query_one(FooterBar).update_progress, 1.0)
+
+        for idx, pc_file in enumerate(cleaned_files):
+            fname = os.path.basename(pc_file)
+            progress_msg = (
+                t("toast_ul_multi_progress", current=idx + 1, total=total, name=fname)
+                if total > 1
+                else t("toast_ul_progress", name=fname)
+            )
+            self.app.call_from_thread(self.query_one(FooterBar).start_progress, float(total), progress_msg)
+            success, msg = self.adb.push_file(pc_file, phone_dest)
+            if success:
+                success_count += 1
+            last_msg = msg
+            self.app.call_from_thread(self.query_one(FooterBar).update_progress, float(idx + 1))
+
         self.app.call_from_thread(self.query_one(FooterBar).finish_progress)
-        self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, not success)
-        if success:
+
+        if total == 1:
+            self.app.call_from_thread(self.query_one(FooterBar).show_toast, last_msg, success_count == 0)
+        else:
+            toast_msg = t("toast_ul_batch_complete", count=success_count, total=total, dest=phone_dest)
+            self.app.call_from_thread(self.query_one(FooterBar).show_toast, toast_msg, success_count == 0)
+
+        if success_count > 0:
             self.load_directory(self.current_path)
 
     def action_create_folder(self) -> None:

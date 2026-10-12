@@ -103,3 +103,54 @@ ModalScreen {
     margin-bottom: 1;
     text-align: left;
 }
+
+#upload-modal-dialog {
+    width: 82;
+    max-width: 95%;
+    height: auto;
+}
+
+#upload-actions-bar {
+    layout: horizontal;
+    height: 3;
+    align: left middle;
+    margin-top: 1;
+    margin-bottom: 1;
+}
+
+#upload-actions-bar Button {
+    margin-right: 1;
+    min-width: 12;
+}
+
+#upload-selected-container {
+    height: auto;
+    max-height: 10;
+    margin-top: 1;
+    margin-bottom: 1;
+    border: solid #3b4261;
+    padding: 0 1;
+    background: #1a1b26;
+}
+
+#upload-selected-header {
+    layout: horizontal;
+    height: 3;
+    align: left middle;
+}
+
+#upload-selected-title {
+    width: 1fr;
+    color: #73daca;
+    text-style: bold;
+}
+
+#btn-clear-selected {
+    min-width: 10;
+}
+
+#upload-files-scroll {
+    max-height: 6;
+    height: auto;
+    margin-bottom: 1;
+}

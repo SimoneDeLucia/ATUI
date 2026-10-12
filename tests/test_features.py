@@ -401,6 +401,69 @@ async def run_compatibility_suite():
             assert "NO_SYNTAX_ERRORS" in res.stdout, f"PowerShell syntax error in {ps_script}: {res.stderr}"
         print("    PowerShell 5.1 build_installer.ps1 and install.ps1 parsed with 0 errors!")
 
+        # 25. Test Revamped Upload Functionality (Quotes stripping, Multi-select, Native Picker & Batch Push)
+        print("[25] Testing Revamped Upload Functionality (Quotes, Multi-select, GUI Picker & Batch Push)...")
+        from textual.widgets import Input, Button
+        from android_tui.views.modals import parse_file_paths, pick_files_gui, UploadModal
+
+        # (a) Test quote stripping and path parsing
+        assert parse_file_paths('"C:\\Users\\Test\\file.apk"') == ["C:\\Users\\Test\\file.apk"]
+        assert parse_file_paths("'C:\\Users\\Test\\file.apk'") == ["C:\\Users\\Test\\file.apk"]
+        assert parse_file_paths('"C:\\test\\1.apk" "C:\\test\\2.apk"') == ["C:\\test\\1.apk", "C:\\test\\2.apk"]
+        assert parse_file_paths('"C:\\test\\1.apk"\n"C:\\test\\2.apk"') == ["C:\\test\\1.apk", "C:\\test\\2.apk"]
+        assert parse_file_paths('"C:\\test\\1.apk"; "C:\\test\\2.apk"') == ["C:\\test\\1.apk", "C:\\test\\2.apk"]
+        assert callable(pick_files_gui)
+        print("    Path quote-stripping and multi-path parser verified!")
+
+        # (b) Test UploadModal UI components and interaction
+        up_modal = UploadModal(current_phone_dir="/sdcard/Download")
+        app.push_screen(up_modal)
+        await pilot.pause()
+        assert up_modal.query_one("#input-pc-src") is not None
+        assert up_modal.query_one("#btn-browse-files-gui") is not None
+        assert up_modal.query_one("#btn-browse-folder-gui") is not None
+        assert up_modal.query_one("#btn-add-paths") is not None
+        assert up_modal.query_one("#btn-submit") is not None
+        assert up_modal.query_one("#btn-cancel") is not None
+
+        # Add quoted path through input and add button
+        up_modal.query_one("#input-pc-src", Input).value = '"C:\\mock\\file1.apk" "C:\\mock\\file2.apk"'
+        up_modal.query_one("#btn-add-paths", Button).press()
+        await pilot.pause()
+        assert len(up_modal.selected_files) == 2
+        assert "C:\\mock\\file1.apk" in up_modal.selected_files
+        assert "C:\\mock\\file2.apk" in up_modal.selected_files
+        assert up_modal.query_one("#upload-selected-container").display is True
+
+        # Clear selected
+        up_modal.query_one("#btn-clear-selected", Button).press()
+        await pilot.pause()
+        assert len(up_modal.selected_files) == 0
+        assert up_modal.query_one("#upload-selected-container").display is False
+
+        app.screen.dismiss(None)
+        await pilot.pause()
+        print("    UploadModal multi-selection UI and native picker integration verified!")
+
+        # (c) Test Batch Upload with quote stripping via _do_push_worker
+        tmp_f1 = Path(tempfile.gettempdir()) / "atui_test_upload1.txt"
+        tmp_f2 = Path(tempfile.gettempdir()) / "atui_test_upload2.txt"
+        tmp_f1.write_text("sample content 1", encoding="utf-8")
+        tmp_f2.write_text("sample content 2", encoding="utf-8")
+        try:
+            # Pass second file with surrounding quotes to simulate Explorer 'Copy as path'
+            app._do_push_worker([str(tmp_f1), f'"{str(tmp_f2)}"'], "/sdcard/Download")
+            await pilot.pause(0.2)
+            phone_files = [e.name for e in app.adb._demo_fs.get("/sdcard/Download", [])]
+            assert "atui_test_upload1.txt" in phone_files
+            assert "atui_test_upload2.txt" in phone_files
+            print("    Multi-file batch upload with quote-stripped paths verified!")
+        finally:
+            if tmp_f1.exists():
+                tmp_f1.unlink()
+            if tmp_f2.exists():
+                tmp_f2.unlink()
+
         print("\n[SUCCESS] ALL INTEGRATION TESTS (ALL REQUIREMENTS) PASSED 100%!")
 
 
