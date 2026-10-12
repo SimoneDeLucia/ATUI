@@ -1,8 +1,10 @@
-# ⚡ AndroidTUI — ADB Terminal User Interface
+# ⚡ ATUI — Android Terminal User Interface
 
 [🇮🇹 Italiano](README.md) | [🇬🇧 English](README_EN.md)
 
 > **A powerful, modern, and reactive terminal file manager for Android devices via ADB, inspired by the Miller Columns aesthetics of [pikpaktui](https://github.com/Bengerthelorf/pikpaktui).**
+
+> 🤖 **Development Disclaimer:** This application was vibecoded with **Google Antigravity**.
 
 ---
 
@@ -11,6 +13,12 @@
 - 🖱️ **Mouse-Clickable Checkbox Selection Squares**:
   - Dedicated `[✓]` column to select or deselect individual files directly with mouse clicks without moving the cursor or losing scroll position.
   - Clicking on the header `[✓]` instantly selects or deselects all files in the current folder.
+- ⚡ **Direct File Opening (Double Click or Enter) Without Downloading**:
+  - Instantly open and preview images, videos, PDFs, audio, and documents using your operating system's default viewer/application via double-click or `Enter`, seamlessly stored in temp cache without permanently cluttering local disk.
+- 📊 **Graphical Footer Progress Bar for Transfers**:
+  - Live progress visualization in the footer during downloads (`adb pull`), uploads (`adb push`), and device-to-device transfers.
+- 🧭 **Quick Folders Section in Path Breadcrumbs Modal**:
+  - Integrated quick jump buttons in the breadcrumbs navigation modal (`p`) for **Download**, **sdcard**, **MicroSD** (if detected), **DCIM**, and **Video**.
 - 🖼️ **Graphic Card Thumbnails for ALL File Types**:
   - High-aesthetic 24-bit half-block cyber cards for all categories: **APK** (Android mascot), **Audio** (Equalizer waveform), **Documents** (Folio page), **Archives** (Zippered crate), **Source Code** (Console editor), **System/Binaries** (Microchip CPU).
   - **Default Thumbnail for Unrecognized File Formats**: Dedicated slate card with a paperclip emblem `📎` for unknown extensions (such as `prod.keys`), displaying format and file metadata.
@@ -25,7 +33,6 @@
 - 📦 **Windows .msi Installer and Native Linux Compatibility**:
   - Configurable Windows `.msi` package (`installer/dist/AndroidTUI-Setup.msi` and `build_installer.ps1`) automatically downloading and registering official Google ADB USB drivers and platform-tools.
   - Complete Linux support: `atui` Linux binary launcher, `installer/51-android.rules` for non-root USB access, and `installer/install_linux.sh`.
-  - Separate Git branch `linux` for isolated tracking and platform builds.
 - 🖥️ **3-Column Layout (Miller Columns)**:
   - **Parent Column**: Overview of parent folder with cursor-selectable `⬆️ ..` navigation item to move up seamlessly.
   - **Active Column**: Navigable directory list with category icons, checkboxes for batch operations, formatted sizes, permissions, and dates.
@@ -92,12 +99,16 @@ Available command-line flags:
 # Standard launch
 atui
 
-# Direct simulation / demo mode
-atui --demo
-
 # Specify custom adb path
 atui --adb-path "C:\path\to\adb.exe"
 
 # Show help
 atui --help
 ```
+
+---
+
+## 📜 License
+
+This project is free software licensed under the **GNU General Public License v3.0 (GPL-3.0)**. See the [LICENSE](LICENSE) file for complete terms and conditions.
+

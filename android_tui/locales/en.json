@@ -155,5 +155,9 @@
   "preset_standard": "Standard",
   "preset_expanded": "Expanded",
   "btn_apply": "Apply",
-  "main_menu_toast": "Returned to main menu"
+  "main_menu_toast": "Returned to main menu",
+  "breadcrumb_quick_locations": "Quick Folders:",
+  "opening_file": "Opening: {name}...",
+  "opened_file": "File opened: {name}",
+  "file_type_not_supported": "Format not supported for direct opening: {name}"
 }

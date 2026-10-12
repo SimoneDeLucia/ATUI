@@ -155,5 +155,9 @@
   "preset_standard": "Standard",
   "preset_expanded": "Espanso",
   "btn_apply": "Applica",
-  "main_menu_toast": "Ritorno al menu principale"
+  "main_menu_toast": "Ritorno al menu principale",
+  "breadcrumb_quick_locations": "Cartelle Rapide:",
+  "opening_file": "Apertura diretta: {name}...",
+  "opened_file": "File aperto: {name}",
+  "file_type_not_supported": "Formato non supportato per l'apertura diretta: {name}"
 }

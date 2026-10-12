@@ -4,6 +4,7 @@ Coordinates the ADB manager, Miller Columns browser, Disconnected Dashboard,
 and interactive modals.
 """
 import os
+import sys
 import subprocess
 from pathlib import Path
 from typing import Optional, List, Any, Tuple
@@ -322,9 +323,7 @@ class AndroidTuiApp(App):
             if entry.is_dir or entry.is_symlink:
                 self.load_directory(entry.path)
             else:
-                self.fetch_thumbnail_preview(entry)
-                if is_text_previewable(entry.name, entry.is_dir):
-                    self.fetch_preview(entry)
+                self.action_open_file(entry)
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         idx = event.cursor_row
@@ -451,7 +450,79 @@ class AndroidTuiApp(App):
             if entry.is_dir or entry.is_symlink:
                 self.load_directory(entry.path)
             else:
-                self.action_download_entry()
+                self.action_open_file(entry)
+
+    def action_open_file(self, entry: Optional[FileEntry] = None) -> None:
+        """
+        Opens a file directly using the system default application (image viewer, video player,
+        PDF reader, document viewer, text editor) without requiring a manual download destination.
+        """
+        if not entry:
+            entry = self.get_selected_entry()
+        if not entry or entry.is_dir:
+            return
+
+        supported_cats = {
+            FileCategory.IMAGE, FileCategory.VIDEO, FileCategory.DOCUMENT,
+            FileCategory.AUDIO, FileCategory.CODE, FileCategory.ARCHIVE
+        }
+        ext = Path(entry.name).suffix.lower()
+        supported_exts = {
+            ".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".ico",
+            ".mp4", ".mkv", ".avi", ".mov", ".webm", ".3gp", ".flv",
+            ".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac",
+            ".pdf", ".txt", ".md", ".json", ".xml", ".html", ".csv", ".log",
+            ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".zip", ".tar", ".gz"
+        }
+        if entry.category not in supported_cats and ext not in supported_exts:
+            self.query_one(FooterBar).show_toast(t("file_type_not_supported", name=entry.name), is_error=True)
+            return
+
+        self._do_open_file_worker(entry)
+
+    @work(thread=True)
+    def _do_open_file_worker(self, entry: FileEntry) -> None:
+        """Pulls file to a local temp cache directory and launches OS default viewer."""
+        import tempfile
+
+        self.app.call_from_thread(
+            self.query_one(FooterBar).start_progress,
+            1.0,
+            t("opening_file", name=entry.name)
+        )
+
+        temp_dir = Path(tempfile.gettempdir()) / "atui_preview_cache"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        local_target = temp_dir / entry.name
+
+        success, msg = self.adb.pull_file(entry.path, str(local_target))
+        self.app.call_from_thread(self.query_one(FooterBar).update_progress, 1.0)
+        self.app.call_from_thread(self.query_one(FooterBar).finish_progress)
+
+        if success and local_target.exists():
+            try:
+                if sys.platform == "win32":
+                    os.startfile(str(local_target))
+                elif sys.platform == "darwin":
+                    subprocess.Popen(["open", str(local_target)])
+                else:
+                    subprocess.Popen(["xdg-open", str(local_target)])
+                self.app.call_from_thread(
+                    self.query_one(FooterBar).show_toast,
+                    t("opened_file", name=entry.name)
+                )
+            except Exception as e:
+                self.app.call_from_thread(
+                    self.query_one(FooterBar).show_toast,
+                    f"Errore avvio app di sistema: {e}",
+                    True
+                )
+        else:
+            self.app.call_from_thread(
+                self.query_one(FooterBar).show_toast,
+                f"Errore apertura: {msg}",
+                True
+            )
 
     def action_go_parent(self) -> None:
         if self.current_path in ("/", "/sdcard"):
@@ -617,6 +688,12 @@ class AndroidTuiApp(App):
         temp_dir = tempfile.gettempdir()
         source_serial = self.adb.active_device.serial if self.adb.active_device else None
 
+        self.app.call_from_thread(
+            self.query_one(FooterBar).start_progress,
+            float(total),
+            t("transfer_d2d_progress", idx=1, total=total, name=entries[0].name, target=target_device.display_name),
+        )
+
         for idx, entry in enumerate(entries, 1):
             self.app.call_from_thread(
                 self.query_one(FooterBar).show_toast,
@@ -633,7 +710,9 @@ class AndroidTuiApp(App):
                         os.remove(local_tmp)
                 except Exception:
                     pass
+            self.app.call_from_thread(self.query_one(FooterBar).update_progress, 1.0)
 
+        self.app.call_from_thread(self.query_one(FooterBar).finish_progress)
         msg = t("transfer_d2d_complete", count=success_count, total=total, target=target_device.display_name)
         self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, success_count == 0)
         self.selected_paths.clear()
@@ -642,14 +721,26 @@ class AndroidTuiApp(App):
 
     @work(thread=True)
     def _do_pull_worker(self, remote_path: str, pc_dest_dir: str) -> None:
-        self.app.call_from_thread(self.query_one(FooterBar).show_toast, f"Download in corso: {os.path.basename(remote_path)}...")
+        fname = os.path.basename(remote_path)
+        self.app.call_from_thread(
+            self.query_one(FooterBar).start_progress,
+            1.0,
+            f"Download in corso: {fname}...",
+        )
         success, msg = self.adb.pull_file(remote_path, pc_dest_dir)
+        self.app.call_from_thread(self.query_one(FooterBar).update_progress, 1.0)
+        self.app.call_from_thread(self.query_one(FooterBar).finish_progress)
         self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, not success)
 
     @work(thread=True)
     def _do_batch_pull_worker(self, entries: List[FileEntry], pc_dest_dir: str) -> None:
         total = len(entries)
         success_count = 0
+        self.app.call_from_thread(
+            self.query_one(FooterBar).start_progress,
+            float(total),
+            f"Download batch (0/{total})...",
+        )
         for idx, entry in enumerate(entries, 1):
             self.app.call_from_thread(
                 self.query_one(FooterBar).show_toast,
@@ -658,7 +749,9 @@ class AndroidTuiApp(App):
             success, _ = self.adb.pull_file(entry.path, pc_dest_dir)
             if success:
                 success_count += 1
+            self.app.call_from_thread(self.query_one(FooterBar).update_progress, 1.0)
 
+        self.app.call_from_thread(self.query_one(FooterBar).finish_progress)
         msg = f"Download batch completato: {success_count}/{total} file scaricati in {pc_dest_dir}"
         self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, success_count == 0)
         self.selected_paths.clear()
@@ -676,8 +769,15 @@ class AndroidTuiApp(App):
 
     @work(thread=True)
     def _do_push_worker(self, pc_file: str, phone_dest: str) -> None:
-        self.app.call_from_thread(self.query_one(FooterBar).show_toast, f"Caricamento in corso: {os.path.basename(pc_file)}...")
+        fname = os.path.basename(pc_file)
+        self.app.call_from_thread(
+            self.query_one(FooterBar).start_progress,
+            1.0,
+            f"Caricamento in corso: {fname}...",
+        )
         success, msg = self.adb.push_file(pc_file, phone_dest)
+        self.app.call_from_thread(self.query_one(FooterBar).update_progress, 1.0)
+        self.app.call_from_thread(self.query_one(FooterBar).finish_progress)
         self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, not success)
         if success:
             self.load_directory(self.current_path)
@@ -851,7 +951,7 @@ class AndroidTuiApp(App):
             if target_path:
                 self.load_directory(target_path)
 
-        self.push_screen(PathBreadcrumbsModal(current_path=self.current_path), handle_path)
+        self.push_screen(PathBreadcrumbsModal(current_path=self.current_path, device=self.adb.active_device), handle_path)
 
     def on_button_pressed(self, event) -> None:
         btn_id = event.button.id or ""

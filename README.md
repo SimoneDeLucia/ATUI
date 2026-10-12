@@ -1,8 +1,10 @@
-# ⚡ AndroidTUI — ADB Terminal User Interface
+# ⚡ ATUI — Android Terminal User Interface
 
 [🇮🇹 Italiano](README.md) | [🇬🇧 English](README_EN.md)
 
 > **Un gestore file system Android da terminale potente, elegante e reattivo, basato sui comandi ADB e ispirato all'estetica Miller Columns di [pikpaktui](https://github.com/Bengerthelorf/pikpaktui).**
+
+> 🤖 **Disclaimer di Sviluppo:** Questa applicazione è stata vibecodata con **Google Antigravity**.
 
 ---
 
@@ -33,6 +35,12 @@
 - 📱 **Header Dispositivo con Locazioni di Memoria Note**:
   - Mostra lo stato di connessione (USB / Wireless), latenza segnale, batteria, e versione Android.
   - Scorciatoie rapide: **Memoria Interna** (`/sdcard`) e **MicroSD Esterna** (`/storage/XXXX-XXXX`) con tasti `[📱 Interna]` e `[💾 MicroSD]` o tasto `g`.
+- ⚡ **Apertura File Diretta (Doppio Click o Invio) Senza Scaricare**:
+  - Visualizza ed esegui all'istante immagini, video, PDF, audio e documenti tramite doppio click del mouse o tasto `Enter` con l'app predefinita del sistema operativo, senza richiedere il download permanente su disco.
+- 📊 **Progress Bar Grafica nel Footer per i Trasferimenti**:
+  - Monitoraggio visuale in tempo reale del progresso per download (`adb pull`), caricamento (`adb push`) e trasferimenti diretti Device-to-Device.
+- 🧭 **Cartelle Rapide nel Menu Percorso & Sottocartelle (Breadcrumbs)**:
+  - Sezione integrata nella finestra di navigazione percorso (`p`) per saltare con un solo click a **Download**, **sdcard**, **MicroSD** (se presente), **DCIM** e **Video**.
 - 🌐 **Supporto Bilingue Completo (Italiano / Inglese)**:
   - Cambio lingua istantaneo con un click (`[🌐 IT / EN]`) o tasto `F2`.
 - 🎨 **Architettura CSS Modulare**:
@@ -145,5 +153,13 @@ AndroidTUI/
 │   └── app.py                # Applicazione principale Textual & worker asincroni
 ├── main.py                   # Script di avvio con argomenti CLI
 ├── requirements.txt          # Dipendenze Python (textual, rich)
+├── LICENSE                   # Licenza GPL-3.0
 └── README.md                 # Documentazione del progetto
 ```
+
+---
+
+## 📜 Licenza
+
+Questo progetto è software libero distribuito sotto i termini della licenza **GNU General Public License v3.0 (GPL-3.0)**. Consulta il file [LICENSE](LICENSE) per il testo completo della licenza.
+

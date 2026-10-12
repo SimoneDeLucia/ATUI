@@ -32,11 +32,18 @@ ModalScreen {
     height: 3;
 }
 
+#breadcrumb-list {
+    max-height: 8;
+    height: auto;
+    margin-bottom: 1;
+}
+
 .quick-folders-bar {
     layout: horizontal;
     height: 3;
     margin-top: 1;
     margin-bottom: 1;
+    align: left middle;
 }
 
 .quick-folders-bar Button {

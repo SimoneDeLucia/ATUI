@@ -3,15 +3,16 @@ Footer component for AndroidTUI.
 Displays interactive clickable action buttons for mouse interaction,
 batch selection badge, and real-time status toasts with i18n support.
 """
+from typing import Optional
 from textual.app import ComposeResult
 from textual.containers import Horizontal
-from textual.widgets import Static, Button
+from textual.widgets import Static, Button, ProgressBar
 
 from ..i18n import t
 
 
 class FooterBar(Static):
-    """Interactive bottom bar with clickable action buttons and live status toasts."""
+    """Interactive bottom bar with clickable action buttons, live progress bar, and status toasts."""
 
     def __init__(self, **kwargs):
         super().__init__(id="footer-bar", **kwargs)
@@ -40,6 +41,7 @@ class FooterBar(Static):
                 yield Button(t("fbtn_batch_dl", count=0), id="fbtn-batch-download", classes="batch-pill-download")
                 yield Button(t("fbtn_batch_del", count=0), id="fbtn-batch-delete", classes="batch-pill-delete")
                 yield Button(t("fbtn_batch_clear"), id="fbtn-batch-clear", classes="batch-pill-clear")
+            yield ProgressBar(id="footer-progress", show_percentage=True, show_eta=False)
             yield Static(self._current_toast, id="footer-toast")
 
     def update_texts(self) -> None:
@@ -94,3 +96,25 @@ class FooterBar(Static):
             badge.update("")
             badge.styles.display = "none"
             batch_actions.styles.display = "none"
+
+    def start_progress(self, total: float = 100, label: str = "") -> None:
+        """Displays and initializes the footer progress bar for file transfer operations."""
+        prog = self.query_one("#footer-progress", ProgressBar)
+        prog.update(total=total, progress=0)
+        prog.styles.display = "block"
+        if label:
+            self.show_toast(label)
+
+    def update_progress(self, advance: float = 1, current: Optional[float] = None) -> None:
+        """Advances or updates the footer progress bar value."""
+        prog = self.query_one("#footer-progress", ProgressBar)
+        if current is not None:
+            prog.update(progress=current)
+        else:
+            prog.advance(advance)
+
+    def finish_progress(self) -> None:
+        """Hides the footer progress bar once file transfer completes."""
+        prog = self.query_one("#footer-progress", ProgressBar)
+        prog.styles.display = "none"
+

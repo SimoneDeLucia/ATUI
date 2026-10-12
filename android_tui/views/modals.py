@@ -618,12 +618,14 @@ class QuickJumpModal(ModalScreen[Optional[str]]):
 class PathBreadcrumbsModal(ModalScreen[Optional[str]]):
     """
     Interactive Breadcrumbs Modal allowing the user to select any folder or subfolder
-    along the current directory hierarchy or manually input/paste a custom destination path.
+    along the current directory hierarchy or manually input/paste a custom destination path,
+    as well as quick jumps to standard folders (Download, sdcard, MicroSD, DCIM, Video).
     """
 
-    def __init__(self, current_path: str, **kwargs):
+    def __init__(self, current_path: str, device: Optional[AdbDevice] = None, **kwargs):
         super().__init__(**kwargs)
         self.current_path = current_path or "/"
+        self.device = device
         self.segments: List[Tuple[str, str]] = self._build_segments(self.current_path)
 
     def _build_segments(self, path: str) -> List[Tuple[str, str]]:
@@ -656,6 +658,16 @@ class PathBreadcrumbsModal(ModalScreen[Optional[str]]):
                         t_lbl.append(label, style="bold #c0caf5")
                     yield ListItem(Label(t_lbl), id=f"bc-item-{idx}")
 
+            # Quick Folders Jump Section (Download, sdcard, MicroSD, DCIM, Video)
+            yield Static(f"[bold #7dcfff]{t('breadcrumb_quick_locations')}[/]", classes="meta-key")
+            with Horizontal(classes="quick-folders-bar", id="quick-folders-bar"):
+                yield Button("📥 Download", id="qf-download")
+                yield Button("📱 sdcard", id="qf-sdcard")
+                if self.device and self.device.ext_sd_path:
+                    yield Button("💾 MicroSD", id="qf-microsd")
+                yield Button("📷 DCIM", id="qf-dcim")
+                yield Button("🎬 Video", id="qf-video")
+
             yield Static(f"[bold #7dcfff]{t('breadcrumb_input_placeholder')}:[/]", classes="meta-key")
             yield Input(value=self.current_path, id="input-custom-path", placeholder="/sdcard/...")
 
@@ -670,7 +682,21 @@ class PathBreadcrumbsModal(ModalScreen[Optional[str]]):
             self.dismiss(target_path)
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-go":
+        btn_id = event.button.id
+        if btn_id == "qf-download":
+            self.dismiss("/sdcard/Download")
+        elif btn_id == "qf-sdcard":
+            self.dismiss("/sdcard")
+        elif btn_id == "qf-microsd":
+            if self.device and self.device.ext_sd_path:
+                self.dismiss(self.device.ext_sd_path)
+            else:
+                self.dismiss("/storage")
+        elif btn_id == "qf-dcim":
+            self.dismiss("/sdcard/DCIM")
+        elif btn_id == "qf-video":
+            self.dismiss("/sdcard/Movies")
+        elif btn_id == "btn-go":
             input_val = self.query_one("#input-custom-path", Input).value.strip()
             if input_val and input_val != self.current_path:
                 self.dismiss(input_val)
