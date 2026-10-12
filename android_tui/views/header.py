@@ -60,6 +60,7 @@ class HeaderBar(Static):
             badge_widget.styles.background = "#2d1c24"
             stats_widget.update(t("header_no_device_ready"))
             path_widget.update("")
+            btn_extsd.display = False
             return
 
         # Device is connected
@@ -91,11 +92,12 @@ class HeaderBar(Static):
         if device.storage_free:
             stats_parts.append(f"{t('header_internal')}: {device.storage_free} {t('header_free')}")
 
-        # External MicroSD
+        # External MicroSD: only show if present on device
         if device.ext_sd_path:
             stats_parts.append(f"{t('header_sd')}: {device.ext_sd_free or 'OK'} {t('header_free')}")
+            btn_extsd.display = True
         else:
-            stats_parts.append(f"{t('header_sd')}: {t('header_no_sd')}")
+            btn_extsd.display = False
 
         stats_widget.update(" · ".join(stats_parts))
         path_widget.update(f"📂 {current_path}")
@@ -110,7 +112,9 @@ class HeaderBar(Static):
         widget = event.widget
         if widget and widget.id == "header-device-badge":
             self.app.action_manage_devices()
-        elif widget and widget.id in ("header-path", "header-stats"):
+        elif widget and widget.id == "header-path":
+            self.app.action_select_breadcrumb()
+        elif widget and widget.id == "header-stats":
             self.app.action_quick_jump()
         elif widget and widget.id == "header-logo":
             self.app.action_show_help()

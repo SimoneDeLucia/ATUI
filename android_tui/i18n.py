@@ -119,12 +119,12 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     # Browser & Panes
     # -----------------------------------------------------------------
     "parent_pane_title": {
-        "it": " 📁 Genitore: {path} (Clicca qui per salire) ",
-        "en": " 📁 Parent: {path} (Click here to go up) ",
+        "it": " 📁 Genitore: {path} ",
+        "en": " 📁 Parent: {path} ",
     },
     "parent_go_up_item": {
-        "it": "⬆️ [..] Salire alla cartella genitore ({path})",
-        "en": "⬆️ [..] Go up to parent folder ({path})",
+        "it": "Cartella superiore",
+        "en": "Parent directory",
     },
     "current_pane_title": {
         "it": " 📂 Contenuto: {path} ({count}) ",
@@ -295,8 +295,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "en": "⏎ Open",
     },
     "fbtn_select": {
-        "it": "␣ Seleziona",
-        "en": "␣ Select",
+        "it": "✓ Sel",
+        "en": "✓ Sel",
     },
     "fbtn_download": {
         "it": "📥 Scarica",
@@ -457,6 +457,105 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "modal_jump_desc": {
         "it": "Seleziona una posizione nota da esplorare:",
         "en": "Select a known storage location to explore:",
+    },
+    # Common Modal Action Buttons
+    "btn_select": {
+        "it": "Seleziona",
+        "en": "Select",
+    },
+    "btn_cancel": {
+        "it": "Annulla",
+        "en": "Cancel",
+    },
+    "btn_close": {
+        "it": "Chiudi",
+        "en": "Close",
+    },
+    "btn_connect": {
+        "it": "Connetti",
+        "en": "Connect",
+    },
+    "btn_pair": {
+        "it": "Accoppia",
+        "en": "Pair",
+    },
+    "btn_scan_usb": {
+        "it": "🔌 Scansiona USB",
+        "en": "🔌 Scan USB",
+    },
+    "btn_wifi_connect": {
+        "it": "📶 Connetti WiFi",
+        "en": "📶 WiFi Connect",
+    },
+    "btn_wifi_pair": {
+        "it": "🔗 Accoppia WiFi",
+        "en": "🔗 WiFi Pair",
+    },
+    "btn_download_now": {
+        "it": "Scarica Ora",
+        "en": "Download Now",
+    },
+    "btn_upload_now": {
+        "it": "Carica Ora",
+        "en": "Upload Now",
+    },
+    "btn_create": {
+        "it": "Crea",
+        "en": "Create",
+    },
+    "btn_rename": {
+        "it": "Rinomina",
+        "en": "Rename",
+    },
+    "btn_delete_confirm": {
+        "it": "Elimina Definitivamente",
+        "en": "Delete Permanently",
+    },
+    "btn_delete_all": {
+        "it": "Elimina Tutti ({count})",
+        "en": "Delete All ({count})",
+    },
+    "btn_download_all": {
+        "it": "Scarica Tutti ({count})",
+        "en": "Download All ({count})",
+    },
+    # Device Select Modal
+    "dev_select_title": {
+        "it": "📱 Seleziona o Aggiungi Dispositivo Android",
+        "en": "📱 Select or Add Android Device",
+    },
+    "dev_select_subtitle": {
+        "it": "Elenco dispositivi rilevati o aggiungi una nuova connessione:",
+        "en": "List of detected devices or add a new connection:",
+    },
+    "dev_no_devices": {
+        "it": "Nessun dispositivo attualmente connesso. Collega un cavo USB o usa il WiFi.",
+        "en": "No devices currently connected. Connect USB cable or use WiFi.",
+    },
+    "dev_add_section": {
+        "it": "➕ Aggiungi Dispositivo:",
+        "en": "➕ Add Device:",
+    },
+    # Breadcrumbs & Path Navigation Modal
+    "breadcrumb_title": {
+        "it": "📂 Navigazione Percorso & Sottocartelle",
+        "en": "📂 Path & Subfolder Navigation",
+    },
+    "breadcrumb_subtitle": {
+        "it": "Seleziona una cartella nel percorso attuale per saltarvi direttamente:",
+        "en": "Select a folder in current path to jump directly:",
+    },
+    "breadcrumb_input_placeholder": {
+        "it": "Inserisci o modifica percorso (es. /sdcard/Download)",
+        "en": "Enter or edit path (e.g. /sdcard/Download)",
+    },
+    "breadcrumb_btn_go": {
+        "it": "Vai",
+        "en": "Go",
+    },
+    "breadcrumb_root": {
+        "it": "Root di Sistema (/)",
+        "en": "System Root (/)",
     },
 }
 

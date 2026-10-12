@@ -6,7 +6,7 @@ and interactive modals.
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Any
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -35,6 +35,7 @@ from .views.modals import (
     DeleteConfirmModal,
     HelpModal,
     QuickJumpModal,
+    PathBreadcrumbsModal,
     ScrcpyModal,
 )
 from .i18n import t, toggle_language, get_current_language
@@ -51,6 +52,7 @@ class AndroidTuiApp(App):
         Binding("q", "quit_app", "Esci", show=True),
         Binding("question_mark", "show_help", "Aiuto", show=True),
         Binding("c", "manage_devices", "Dispositivi", show=True),
+        Binding("p", "select_breadcrumb", "Percorso", show=True),
         Binding("m", "launch_scrcpy", "Scrcpy", show=True),
         Binding("g", "quick_jump", "Memorie", show=True),
         Binding("s", "cycle_sort", "Ordina", show=True),
@@ -712,14 +714,28 @@ class AndroidTuiApp(App):
     # Device Management & Mouse Interactions
     # -------------------------------------------------------------
     def action_manage_devices(self) -> None:
+        """Opens Device Selection & Addition dialog (USB / WiFi connect / WiFi pair)."""
         devices = self.adb.get_devices()
-        if not devices:
-            self.query_one(FooterBar).show_toast("Nessun dispositivo rilevato. Usa il menu di connessione USB o WiFi.", is_error=True)
-            self.sync_views()
-            return
 
-        def handle_device_select(selected_dev: Optional[AdbDevice]) -> None:
-            if selected_dev:
+        def handle_device_select(selected_dev: Any) -> None:
+            if not selected_dev:
+                return
+
+            if selected_dev == "action:scan_usb":
+                self.query_one(FooterBar).show_toast("Scansione dispositivi USB in corso...")
+                self.scan_and_auto_connect()
+            elif selected_dev == "action:wifi_connect":
+                def on_wifi_addr(addr: Optional[str]) -> None:
+                    if addr:
+                        self._do_wifi_connect_worker(addr)
+                self.push_screen(WirelessConnectModal(), on_wifi_addr)
+            elif selected_dev == "action:wifi_pair":
+                def on_pair_data(data: Optional[tuple]) -> None:
+                    if data:
+                        addr, code = data
+                        self._do_wifi_pair_worker(addr, code)
+                self.push_screen(WirelessPairModal(), on_pair_data)
+            elif isinstance(selected_dev, AdbDevice):
                 self.adb.set_active_device(selected_dev)
                 if selected_dev.state == DeviceState.DEVICE:
                     self._on_device_connected(selected_dev)
@@ -727,6 +743,14 @@ class AndroidTuiApp(App):
                     self._on_device_unready(selected_dev)
 
         self.push_screen(DeviceSelectModal(devices=devices), handle_device_select)
+
+    def action_select_breadcrumb(self) -> None:
+        """Opens interactive breadcrumbs modal to jump to any parent folder/subfolder or custom path."""
+        def handle_path(target_path: Optional[str]) -> None:
+            if target_path:
+                self.load_directory(target_path)
+
+        self.push_screen(PathBreadcrumbsModal(current_path=self.current_path), handle_path)
 
     def on_button_pressed(self, event) -> None:
         btn_id = event.button.id or ""

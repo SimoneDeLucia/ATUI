@@ -137,10 +137,12 @@ class BrowserView(Horizontal):
                     self.app.load_directory(target_folder.path)
 
     def on_click(self, event) -> None:
-        """Clicking on parent pane title ascends to the parent directory."""
+        """Clicking on parent pane title ascends; clicking current pane title opens breadcrumbs."""
         widget = event.widget
         if widget and widget.id == "parent-pane-title":
             self.app.action_go_parent()
+        elif widget and widget.id == "current-pane-title":
+            self.app.action_select_breadcrumb()
 
     def update_browser(
         self,
@@ -173,7 +175,7 @@ class BrowserView(Horizontal):
         # Item 0: Go up to parent folder (Selectable with keyboard cursor and clickable!)
         up_text = Text()
         up_text.append("⬆️ .. ", style="bold #e0af68")
-        up_text.append(t("parent_go_up_item", path=parent_path), style="bold #7dcfff")
+        up_text.append(t("parent_go_up_item"), style="bold #7dcfff")
         parent_list.append(ListItem(Label(up_text)))
 
         # Sibling folders start at index 1

@@ -1,11 +1,11 @@
 """
 Interactive Modals and Dialogs for AndroidTUI.
-Provides popups for Wireless Pairing/Connect, Device Selection,
+Provides popups for Wireless Pairing/Connect, Device Selection & Addition,
 Download/Upload transfers, File management (rename/delete/new folder),
-Settings and Keyboard shortcuts Help.
+Path Breadcrumbs navigation, Settings and Keyboard shortcuts Help.
 """
 import os
-from typing import List, Optional
+from typing import List, Optional, Tuple, Any
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual.screen import ModalScreen
@@ -13,7 +13,7 @@ from textual.widgets import Static, Input, Button, ListView, ListItem, Label
 from rich.text import Text
 
 from ..models import AdbDevice, ConnectionType, DeviceState, FileEntry
-from ..i18n import t
+from ..i18n import t, get_current_language
 
 
 # -----------------------------------------------------------------
@@ -32,8 +32,8 @@ class WirelessConnectModal(ModalScreen[Optional[str]]):
             )
             yield Input(placeholder="192.168.1.x:5555", id="input-wifi-addr")
             with Horizontal(classes="button-bar"):
-                yield Button("Connetti", id="btn-submit", variant="primary")
-                yield Button("Annulla", id="btn-cancel")
+                yield Button(t("btn_connect"), id="btn-submit", variant="primary")
+                yield Button(t("btn_cancel"), id="btn-cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-submit":
@@ -63,8 +63,8 @@ class WirelessPairModal(ModalScreen[Optional[tuple]]):
             yield Static("Codice di accoppiamento a 6 cifre:")
             yield Input(placeholder="es. 123456", id="input-pair-code")
             with Horizontal(classes="button-bar"):
-                yield Button("Accoppia", id="btn-submit", variant="primary")
-                yield Button("Annulla", id="btn-cancel")
+                yield Button(t("btn_pair"), id="btn-submit", variant="primary")
+                yield Button(t("btn_cancel"), id="btn-cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-submit":
@@ -79,10 +79,10 @@ class WirelessPairModal(ModalScreen[Optional[tuple]]):
 
 
 # -----------------------------------------------------------------
-# 3. Device Selection Modal
+# 3. Device Selection & Addition Modal
 # -----------------------------------------------------------------
-class DeviceSelectModal(ModalScreen[Optional[AdbDevice]]):
-    """Modal to select active device among connected USB / Wireless devices."""
+class DeviceSelectModal(ModalScreen[Any]):
+    """Modal to select active device among connected USB / Wireless devices or add a new one."""
 
     def __init__(self, devices: List[AdbDevice], **kwargs):
         super().__init__(**kwargs)
@@ -90,24 +90,35 @@ class DeviceSelectModal(ModalScreen[Optional[AdbDevice]]):
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-dialog"):
-            yield Static("📱 Seleziona Dispositivo Android", classes="modal-title")
-            yield Static("Elenco dei dispositivi rilevati dal server ADB:", classes="modal-subtitle")
-            
-            with ListView(id="device-list"):
-                for idx, dev in enumerate(self.devices):
-                    icon = "🔌" if dev.connection_type == ConnectionType.USB else (
-                        "📶" if dev.connection_type == ConnectionType.WIRELESS else "🎮"
-                    )
-                    state_color = "#73daca" if dev.state == DeviceState.DEVICE else "#f7768e"
-                    t = Text()
-                    t.append(f"{icon} {dev.display_name} ", style="bold #c0caf5")
-                    t.append(f"({dev.serial}) ", style="dim")
-                    t.append(f"[{dev.state.value.upper()}]", style=f"bold {state_color}")
-                    yield ListItem(Label(t), id=f"dev-item-{idx}")
+            yield Static(t("dev_select_title"), classes="modal-title")
+            yield Static(t("dev_select_subtitle"), classes="modal-subtitle")
+
+            if self.devices:
+                with ListView(id="device-list"):
+                    for idx, dev in enumerate(self.devices):
+                        icon = "🔌" if dev.connection_type == ConnectionType.USB else (
+                            "📶" if dev.connection_type == ConnectionType.WIRELESS else "🎮"
+                        )
+                        state_color = "#73daca" if dev.state == DeviceState.DEVICE else "#f7768e"
+                        t_lbl = Text()
+                        t_lbl.append(f"{icon} {dev.display_name} ", style="bold #c0caf5")
+                        t_lbl.append(f"({dev.serial}) ", style="dim")
+                        t_lbl.append(f"[{dev.state.value.upper()}]", style=f"bold {state_color}")
+                        yield ListItem(Label(t_lbl), id=f"dev-item-{idx}")
+            else:
+                yield Static(f"[dim]{t('dev_no_devices')}[/]", classes="modal-subtitle")
+
+            # Dedicated Add Device Section (always accessible via USB or WiFi)
+            yield Static(f"[bold #7dcfff]{t('dev_add_section')}[/]", classes="meta-key")
+            with Horizontal(classes="button-bar", id="device-add-bar"):
+                yield Button(t("btn_scan_usb"), id="btn-add-usb")
+                yield Button(t("btn_wifi_connect"), id="btn-add-wifi")
+                yield Button(t("btn_wifi_pair"), id="btn-add-pair")
 
             with Horizontal(classes="button-bar"):
-                yield Button("Seleziona", id="btn-select", variant="primary")
-                yield Button("Chiudi", id="btn-cancel")
+                if self.devices:
+                    yield Button(t("btn_select"), id="btn-select", variant="primary")
+                yield Button(t("btn_close"), id="btn-cancel")
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         idx = event.list_view.index
@@ -115,14 +126,21 @@ class DeviceSelectModal(ModalScreen[Optional[AdbDevice]]):
             self.dismiss(self.devices[idx])
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "btn-select":
-            list_view = self.query_one("#device-list", ListView)
-            if list_view.highlighted_child:
-                idx = list_view.index
+        btn_id = event.button.id
+        if btn_id == "btn-select":
+            list_view = self.query(ListView)
+            if list_view and list_view.first().highlighted_child:
+                idx = list_view.first().index
                 if idx is not None and 0 <= idx < len(self.devices):
                     self.dismiss(self.devices[idx])
                     return
             self.dismiss(None)
+        elif btn_id == "btn-add-usb":
+            self.dismiss("action:scan_usb")
+        elif btn_id == "btn-add-wifi":
+            self.dismiss("action:wifi_connect")
+        elif btn_id == "btn-add-pair":
+            self.dismiss("action:wifi_pair")
         else:
             self.dismiss(None)
 
@@ -150,12 +168,11 @@ class BatchDeleteModal(ModalScreen[bool]):
                 classes="modal-subtitle",
             )
             with Horizontal(classes="button-bar"):
-                yield Button(f"Elimina Tutti ({len(self.entries)})", id="btn-delete", variant="error")
-                yield Button("Annulla", id="btn-cancel")
+                yield Button(t("btn_delete_all", count=len(self.entries)), id="btn-delete", variant="error")
+                yield Button(t("btn_cancel"), id="btn-cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(event.button.id == "btn-delete")
-
 
 
 # -----------------------------------------------------------------
@@ -180,8 +197,8 @@ class DownloadModal(ModalScreen[Optional[str]]):
             )
             yield Input(value=self.default_pc_dir, id="input-pc-dest")
             with Horizontal(classes="button-bar"):
-                yield Button("Scarica Ora", id="btn-submit", variant="primary")
-                yield Button("Annulla", id="btn-cancel")
+                yield Button(t("btn_download_now"), id="btn-submit", variant="primary")
+                yield Button(t("btn_cancel"), id="btn-cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-submit":
@@ -220,8 +237,8 @@ class BatchDownloadModal(ModalScreen[Optional[str]]):
             )
             yield Input(value=self.default_pc_dir, id="input-pc-dest")
             with Horizontal(classes="button-bar"):
-                yield Button(f"Scarica Tutti ({len(self.entries)})", id="btn-submit", variant="primary")
-                yield Button("Annulla", id="btn-cancel")
+                yield Button(t("btn_download_all", count=len(self.entries)), id="btn-submit", variant="primary")
+                yield Button(t("btn_cancel"), id="btn-cancel")
 
     def _format_size(self, size_bytes: int) -> str:
         for unit in ["B", "KB", "MB", "GB"]:
@@ -236,7 +253,6 @@ class BatchDownloadModal(ModalScreen[Optional[str]]):
             self.dismiss(val if val else None)
         else:
             self.dismiss(None)
-
 
 
 # -----------------------------------------------------------------
@@ -257,10 +273,10 @@ class UploadModal(ModalScreen[Optional[str]]):
                 f"Inserisci il percorso del file o cartella locale sul PC:",
                 classes="modal-subtitle",
             )
-            yield Input(placeholder=r"C:\Users\SiMonee\Downloads\documento.pdf", id="input-pc-src")
+            yield Input(placeholder=r"C:\Users\...\file.apk", id="input-pc-src")
             with Horizontal(classes="button-bar"):
-                yield Button("Carica Ora", id="btn-submit", variant="primary")
-                yield Button("Annulla", id="btn-cancel")
+                yield Button(t("btn_upload_now"), id="btn-submit", variant="primary")
+                yield Button(t("btn_cancel"), id="btn-cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-submit":
@@ -282,8 +298,8 @@ class CreateFolderModal(ModalScreen[Optional[str]]):
             yield Static("Inserisci il nome della nuova cartella sul telefono:", classes="modal-subtitle")
             yield Input(placeholder="Nome cartella", id="input-folder-name")
             with Horizontal(classes="button-bar"):
-                yield Button("Crea", id="btn-submit", variant="primary")
-                yield Button("Annulla", id="btn-cancel")
+                yield Button(t("btn_create"), id="btn-submit", variant="primary")
+                yield Button(t("btn_cancel"), id="btn-cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-submit":
@@ -309,8 +325,8 @@ class RenameModal(ModalScreen[Optional[str]]):
             yield Static(f"Modifica il nome per [bold #7dcfff]{self.current_name}[/]:", classes="modal-subtitle")
             yield Input(value=self.current_name, id="input-rename")
             with Horizontal(classes="button-bar"):
-                yield Button("Rinomina", id="btn-submit", variant="primary")
-                yield Button("Annulla", id="btn-cancel")
+                yield Button(t("btn_rename"), id="btn-submit", variant="primary")
+                yield Button(t("btn_cancel"), id="btn-cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-submit":
@@ -342,8 +358,8 @@ class DeleteConfirmModal(ModalScreen[bool]):
                 classes="modal-subtitle",
             )
             with Horizontal(classes="button-bar"):
-                yield Button("Elimina Definitivamente", id="btn-delete", variant="error")
-                yield Button("Annulla", id="btn-cancel")
+                yield Button(t("btn_delete_confirm"), id="btn-delete", variant="error")
+                yield Button(t("btn_cancel"), id="btn-cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(event.button.id == "btn-delete")
@@ -363,9 +379,12 @@ class HelpModal(ModalScreen[None]):
                 "  • [bold #73daca]↑ / k[/]         Sposta cursore in alto\n"
                 "  • [bold #73daca]↓ / j[/]         Sposta cursore in basso\n"
                 "  • [bold #73daca]Enter / l[/]     Apri cartella selezionata\n"
-                "  • [bold #73daca]Backspace / h[/]   Torna alla cartella superiore (genitore)\n\n"
+                "  • [bold #73daca]Backspace / h[/] Torna alla cartella genitore\n"
+                "  • [bold #73daca]p[/]             Seleziona cartella o sottocartella nel percorso (Breadcrumbs)\n"
+                "  • [bold #73daca]s / S[/]         Ordina per Nome, Dimensione o Tipo (Inverti ordine)\n"
+                "  • [bold #73daca]m[/]             Condivisione schermo in tempo reale con Scrcpy\n\n"
                 "[bold #7dcfff]Selezione Multipla & Batch:[/\n]"
-                "  • [bold #73daca]Spazio (Space)[/]  Seleziona/deseleziona file per download batch\n"
+                "  • [bold #73daca]Spazio (Space)[/]  Seleziona/deseleziona file (mantiene il cursore)\n"
                 "  • [bold #73daca]a[/]             Seleziona / deseleziona tutti i file\n\n"
                 "[bold #7dcfff]Gestione File & Trasferimenti:[/\n]"
                 "  • [bold #73daca]d[/]             [bold]Scarica su PC (adb pull)[/] (singolo o batch)\n"
@@ -375,17 +394,19 @@ class HelpModal(ModalScreen[None]):
                 "  • [bold #73daca]x[/]             Elimina elemento (rm -rf)\n"
                 "  • [bold #73daca]r[/]             Ricarica la cartella corrente\n\n"
                 "[bold #7dcfff]Interazione con Mouse:[/\n]"
-                "  • Clicca sui pulsanti in basso nel footer per eseguire le azioni\n"
-                "  • Clicca sulle cartelle nel pannello 'Genitore' per navigare indietro\n"
-                "  • Clicca sulla barra superiore per gestire i dispositivi\n\n"
+                "  • Clicca sui quadrati [✓] / [ ] per selezionare i file con il mouse\n"
+                "  • Clicca sulle intestazioni colonna (Nome, Dimensione, Tipo) per ordinare\n"
+                "  • Clicca sul percorso in alto per saltare alle sottocartelle\n"
+                "  • Clicca sui pulsanti in basso nel footer per eseguire le azioni\n\n"
                 "[bold #7dcfff]Connessioni & Dispositivi:[/\n]"
-                "  • [bold #73daca]c[/]             Menu gestione dispositivi (USB & Wireless)\n"
+                "  • [bold #73daca]c[/]             Menu gestione e aggiunta dispositivi (USB & Wireless)\n"
+                "  • [bold #73daca]F2[/]            Cambia lingua (Italiano / English)\n"
                 "  • [bold #73daca]?[/]             Mostra questa schermata di aiuto\n"
                 "  • [bold #73daca]q[/]             Esci da AndroidTUI\n"
             )
             yield Static(help_content, classes="modal-subtitle")
             with Horizontal(classes="button-bar"):
-                yield Button("Chiudi", id="btn-close", variant="primary")
+                yield Button(t("btn_close"), id="btn-close", variant="primary")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(None)
@@ -395,35 +416,39 @@ class HelpModal(ModalScreen[None]):
 # 10. Quick Storage Jump Modal
 # -----------------------------------------------------------------
 class QuickJumpModal(ModalScreen[Optional[str]]):
-    """Modal to jump quickly to known storage locations with keyboard or mouse."""
+    """Modal to quickly jump to known storage locations without redundant icons."""
 
     def __init__(self, device: Optional[AdbDevice], **kwargs):
         super().__init__(**kwargs)
         self.device = device
-        self.locations: List[tuple] = []
+        self.locations: List[Tuple[str, str, str]] = []
+
+        is_it = (get_current_language() == "it")
 
         # 1. Internal Storage
         int_free = f" ({device.storage_free} lib.)" if device and device.storage_free else ""
-        self.locations.append((f"{t('header_internal')}: /sdcard{int_free}", "/sdcard", "📱"))
+        int_lbl = f"Memoria Interna: /sdcard{int_free}" if is_it else f"Internal Storage: /sdcard{int_free}"
+        self.locations.append((int_lbl, "/sdcard", "📱"))
 
-        # 2. External MicroSD
+        # 2. External MicroSD (Only present if device has an external MicroSD!)
         if device and device.ext_sd_path:
             sd_free = f" ({device.ext_sd_free} lib.)" if device.ext_sd_free else ""
-            self.locations.append((f"{t('header_sd')}: {device.ext_sd_path}{sd_free}", device.ext_sd_path, "💾"))
-        else:
-            self.locations.append((f"{t('header_sd')}: ({t('header_no_sd')})", "", "💾"))
+            sd_lbl = f"MicroSD: {device.ext_sd_path}{sd_free}"
+            self.locations.append((sd_lbl, device.ext_sd_path, "💾"))
 
         # 3. Downloads
         self.locations.append(("Downloads: /sdcard/Download", "/sdcard/Download", "📥"))
 
         # 4. Photos / Camera (DCIM)
-        self.locations.append(("DCIM (Fotocamera): /sdcard/DCIM", "/sdcard/DCIM", "📷"))
+        dcim_lbl = "DCIM (Fotocamera): /sdcard/DCIM" if is_it else "DCIM (Camera): /sdcard/DCIM"
+        self.locations.append((dcim_lbl, "/sdcard/DCIM", "📷"))
 
         # 5. Pictures
         self.locations.append(("Pictures: /sdcard/Pictures", "/sdcard/Pictures", "🖼️"))
 
         # 6. System Root
-        self.locations.append(("Root di Sistema: /", "/", "⚙️"))
+        root_lbl = "Root di Sistema: /" if is_it else "System Root: /"
+        self.locations.append((root_lbl, "/", "⚙️"))
 
     def compose(self) -> ComposeResult:
         with Vertical(classes="modal-dialog"):
@@ -461,7 +486,81 @@ class QuickJumpModal(ModalScreen[Optional[str]]):
 
 
 # -----------------------------------------------------------------
-# 9. Scrcpy Screen Mirror Info & Install Modal
+# 11. Path Breadcrumbs & Subfolders Modal
+# -----------------------------------------------------------------
+class PathBreadcrumbsModal(ModalScreen[Optional[str]]):
+    """
+    Interactive Breadcrumbs Modal allowing the user to select any folder or subfolder
+    along the current directory hierarchy or manually input/paste a custom destination path.
+    """
+
+    def __init__(self, current_path: str, **kwargs):
+        super().__init__(**kwargs)
+        self.current_path = current_path or "/"
+        self.segments: List[Tuple[str, str]] = self._build_segments(self.current_path)
+
+    def _build_segments(self, path: str) -> List[Tuple[str, str]]:
+        clean = "/" + path.strip("/") if path.strip("/") else "/"
+        parts = [p for p in clean.split("/") if p]
+
+        segments = [(t("breadcrumb_root"), "/")]
+        accum = ""
+        for p in parts:
+            accum += "/" + p
+            segments.append((f"📂 {p} ({accum})", accum))
+        return segments
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-dialog"):
+            yield Static(t("breadcrumb_title"), classes="modal-title")
+            yield Static(t("breadcrumb_subtitle"), classes="modal-subtitle")
+
+            with ListView(id="breadcrumb-list"):
+                for idx, (label, target_path) in enumerate(self.segments):
+                    t_lbl = Text()
+                    is_current = (target_path == self.current_path.rstrip("/") or (target_path == "/" and self.current_path == "/"))
+                    if is_current:
+                        t_lbl.append("📍 ", style="bold #73daca")
+                        t_lbl.append(label, style="bold #73daca underline")
+                        curr_tag = " [Cartella Attuale]" if get_current_language() == "it" else " [Current Folder]"
+                        t_lbl.append(curr_tag, style="dim #73daca")
+                    else:
+                        t_lbl.append("📁 ", style="bold #7dcfff")
+                        t_lbl.append(label, style="bold #c0caf5")
+                    yield ListItem(Label(t_lbl), id=f"bc-item-{idx}")
+
+            yield Static(f"[bold #7dcfff]{t('breadcrumb_input_placeholder')}:[/]", classes="meta-key")
+            yield Input(value=self.current_path, id="input-custom-path", placeholder="/sdcard/...")
+
+            with Horizontal(classes="button-bar"):
+                yield Button(t("breadcrumb_btn_go"), id="btn-go", variant="primary")
+                yield Button(t("btn_cancel"), id="btn-cancel")
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        idx = event.list_view.index
+        if idx is not None and 0 <= idx < len(self.segments):
+            _, target_path = self.segments[idx]
+            self.dismiss(target_path)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-go":
+            input_val = self.query_one("#input-custom-path", Input).value.strip()
+            if input_val and input_val != self.current_path:
+                self.dismiss(input_val)
+                return
+            list_view = self.query_one("#breadcrumb-list", ListView)
+            idx = list_view.index
+            if idx is not None and 0 <= idx < len(self.segments):
+                _, target_path = self.segments[idx]
+                self.dismiss(target_path)
+            else:
+                self.dismiss(input_val if input_val else None)
+        else:
+            self.dismiss(None)
+
+
+# -----------------------------------------------------------------
+# 12. Scrcpy Screen Mirror Info & Install Modal
 # -----------------------------------------------------------------
 class ScrcpyModal(ModalScreen[None]):
     """Modal displaying instructions on how to install and configure scrcpy for screen mirroring."""
@@ -479,5 +578,3 @@ class ScrcpyModal(ModalScreen[None]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(None)
-
-

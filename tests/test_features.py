@@ -69,7 +69,84 @@ async def run_compatibility_suite():
         await pilot.pause()
         print("    Scrcpy action handled successfully!")
 
-        print("\n[SUCCESS] ALL INTEGRATION TESTS PASSED 100%!")
+        # 5. Requirement 1: Test Device Select & Add Modal (USB & WiFi addition)
+        print("[5] Testing Device Addition from Dispositivi menu...")
+        from android_tui.views.modals import DeviceSelectModal, QuickJumpModal, PathBreadcrumbsModal
+        # Test pressing 'c' opens DeviceSelectModal even if devices list is empty
+        await pilot.press("c")
+        await pilot.pause()
+        assert isinstance(app.screen, DeviceSelectModal)
+        assert app.screen.query_one("#btn-add-usb") is not None
+        assert app.screen.query_one("#btn-add-wifi") is not None
+        assert app.screen.query_one("#btn-add-pair") is not None
+        print("    Device addition modal verified (USB & Wireless options present)!")
+        app.screen.dismiss(None)
+        await pilot.pause()
+
+        # 6. Requirement 2 & 4: MicroSD visibility and duplicate icon check
+        print("[6] Testing MicroSD visibility and QuickJump icons...")
+        # Device without MicroSD
+        dev_no_sd = AdbDevice(serial="test-no-sd", storage_free="128G")
+        jump_modal_no_sd = QuickJumpModal(device=dev_no_sd)
+        labels_no_sd = [loc[0] for loc in jump_modal_no_sd.locations]
+        assert not any("MicroSD" in lbl for lbl in labels_no_sd), "MicroSD must NOT appear when absent"
+        for lbl in labels_no_sd:
+            assert not lbl.startswith("📱 📱"), "Must not have duplicate phone icon"
+            assert not lbl.startswith("💾 💾"), "Must not have duplicate SD icon"
+        print("    MicroSD correctly hidden when absent; no double icons detected!")
+
+        # Device WITH MicroSD
+        dev_with_sd = AdbDevice(serial="test-with-sd", storage_free="128G", ext_sd_path="/storage/1234-5678", ext_sd_free="64G")
+        jump_modal_with_sd = QuickJumpModal(device=dev_with_sd)
+        labels_with_sd = [loc[0] for loc in jump_modal_with_sd.locations]
+        assert any("MicroSD" in lbl for lbl in labels_with_sd), "MicroSD must appear when present"
+        print("    MicroSD correctly displayed when present!")
+
+        # Check HeaderBar MicroSD button visibility
+        from android_tui.views.header import HeaderBar
+        header = app.query_one(HeaderBar)
+        header.update_state(dev_no_sd, "/sdcard")
+        btn_extsd = header.query_one("#hbtn-extsd")
+        assert btn_extsd.display is False, "MicroSD button in header must be hidden when absent"
+        header.update_state(dev_with_sd, "/sdcard")
+        assert btn_extsd.display is True, "MicroSD button in header must be visible when present"
+        print("    Header MicroSD button dynamic display verified!")
+
+        # 7. Requirement 3: Parent ascent redundancy removal
+        print("[7] Testing Parent Directory ascent redundancy removal...")
+        from android_tui.i18n import t
+        parent_title = t("parent_pane_title", path="/sdcard")
+        assert "(Clicca qui per salire)" not in parent_title, "Parent title must not contain redundant instructions"
+        parent_item = t("parent_go_up_item")
+        assert "⬆️" not in parent_item, "Icon should not be duplicated in string"
+        assert parent_item == "Cartella superiore" or parent_item == "Parent directory"
+        print("    Parent ascent redundancy completely eliminated!")
+
+        # 8. Requirement 5: Interactive Breadcrumbs navigation
+        print("[8] Testing Path Breadcrumbs / Subfolders modal...")
+        test_deep_path = "/sdcard/Android/media/org.telegram.messenger"
+        bc_modal = PathBreadcrumbsModal(current_path=test_deep_path)
+        segments = bc_modal.segments
+        expected_paths = [
+            "/",
+            "/sdcard",
+            "/sdcard/Android",
+            "/sdcard/Android/media",
+            "/sdcard/Android/media/org.telegram.messenger",
+        ]
+        actual_paths = [s[1] for s in segments]
+        assert actual_paths == expected_paths, f"Expected {expected_paths}, got {actual_paths}"
+        print(f"    Breadcrumb segments verified: {actual_paths}")
+
+        # Test pressing 'p' on live app
+        await pilot.press("p")
+        await pilot.pause()
+        assert isinstance(app.screen, PathBreadcrumbsModal)
+        print("    Live breadcrumb modal opens via keybinding 'p'!")
+        app.screen.dismiss(None)
+        await pilot.pause()
+
+        print("\n[SUCCESS] ALL INTEGRATION TESTS (INCLUDING ALL 5 REQUIREMENTS) PASSED 100%!")
 
 
 if __name__ == "__main__":
