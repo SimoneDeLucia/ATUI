@@ -12,9 +12,15 @@ requires-python = ">=3.10"
 dependencies = [
     "textual>=8.0.0",
     "rich>=13.0.0",
+    "Pillow>=10.0.0",
+    "pillow-heif>=0.16.0",
 ]
 
 [project.scripts]
 atui = "android_tui.app:main"
 android-tui = "android_tui.app:main"
 androidtui = "android_tui.app:main"
+
+[tool.setuptools.package-data]
+android_tui = ["css/*.css", "css/*.tcss"]
+

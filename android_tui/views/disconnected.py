@@ -2,13 +2,14 @@
 Disconnected state dashboard for AndroidTUI.
 Shown when no ready ADB device is connected.
 Provides interactive options for USB debugging, remembered Wireless devices with 1-click reconnect,
-manual IP:Port / pairing, ADB server diagnostics, and Demo mode.
+manual IP:Port / pairing, ADB server diagnostics, Demo mode, and i18n support.
 """
 from textual.app import ComposeResult
 from textual.containers import Container, Horizontal, Vertical
 from textual.widgets import Static, Button
 
 from ..device_store import load_remembered_devices
+from ..i18n import t
 
 
 class DisconnectedDashboard(Container):
@@ -19,64 +20,58 @@ class DisconnectedDashboard(Container):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="disconnected-hero"):
-            yield Static("⚡ Android Debug Bridge — Gestione Connessioni", id="hero-title")
-            yield Static("⚠️ Nessun dispositivo attivo. Seleziona un dispositivo recente o una modalità di connessione:", id="hero-subtitle")
+            yield Static(t("dash_hero_title"), id="hero-title")
+            yield Static(t("dash_hero_subtitle"), id="hero-subtitle")
 
             with Horizontal(classes="connection-options-grid"):
                 # Option 1: USB Connection
                 with Vertical(classes="option-card"):
-                    yield Static("🔌 Opzione 1: Collegamento USB", classes="card-title")
-                    yield Static(
-                        "1. Collega il telefono al PC con cavo USB.\n"
-                        "2. Abilita [bold]Debug USB[/] nelle Opzioni Sviluppatore.\n"
-                        "3. Autorizza l'impronta RSA del PC sul telefono.",
-                        classes="card-desc",
-                    )
+                    yield Static(t("dash_card_usb_title"), classes="card-title")
+                    yield Static(t("dash_card_usb_desc"), classes="card-desc")
                     with Horizontal(classes="button-bar"):
-                        yield Button("Cerca Dispositivi USB", id="btn-usb-detect", variant="primary")
-                        yield Button("Riconnetti Offline", id="btn-usb-reconnect")
+                        yield Button(t("dash_btn_usb_detect"), id="btn-usb-detect", variant="primary")
+                        yield Button(t("dash_btn_usb_reconnect"), id="btn-usb-reconnect")
 
                 # Option 2: Wireless Debugging & Remembered Devices
                 with Vertical(classes="option-card", id="card-wireless"):
-                    yield Static("📶 Debug Wireless & Dispositivi Recenti", classes="card-title")
+                    yield Static(t("dash_card_wifi_title"), classes="card-title")
                     remembered = load_remembered_devices()
                     if remembered:
-                        yield Static("[bold #7dcfff]Dispositivi precedentemente connessi:[/] (1-click per connettere)", classes="card-desc")
+                        yield Static(f"[bold #7dcfff]{t('dash_recent_title')}:[/] (1-click)", classes="card-desc")
                         for idx, dev in enumerate(remembered[:4]):
-                            name = dev.get("name") or "Dispositivo Android"
+                            name = dev.get("name") or "Android Device"
                             ip_port = dev.get("ip_port") or dev.get("serial") or ""
                             last_seen = dev.get("last_seen", "")
                             label_str = f"📶 {name} · {ip_port} ({last_seen})" if last_seen else f"📶 {name} · {ip_port}"
                             yield Button(label_str, id=f"btn-recon-{idx}", classes="btn-remembered", variant="primary")
                     else:
-                        yield Static("[dim]Nessun dispositivo recente in memoria.[/]", classes="card-desc")
+                        yield Static(f"[dim]{t('dash_card_wifi_desc')}[/]", classes="card-desc")
 
-                    yield Static("[bold #e0af68]Aggiunta manuale dispositivo:[/\n]", classes="card-desc")
                     with Horizontal(classes="button-bar"):
-                        yield Button("+ Inserisci IP:Porta", id="btn-wifi-connect")
-                        yield Button("🔗 Accoppia con Codice", id="btn-wifi-pair")
+                        yield Button(t("dash_btn_wifi_connect"), id="btn-wifi-connect")
+                        yield Button(t("dash_btn_wifi_pair"), id="btn-wifi-pair")
                         if remembered:
-                            yield Button("🗑️ Cancella Lista", id="btn-clear-history")
-
+                            yield Button(t("dash_btn_clear_history"), id="btn-clear-history")
 
             with Horizontal(classes="connection-options-grid"):
                 # Option 3: ADB Tools
                 with Vertical(classes="option-card"):
-                    yield Static("🔄 Diagnostica & Server ADB", classes="card-title")
-                    yield Static(
-                        "Riavvia il demone locale ADB sul computer oppure attiva la modalità TCP/IP su porta 5555 per il telefono collegato.",
-                        classes="card-desc",
-                    )
+                    yield Static(t("dash_card_tools_title"), classes="card-title")
+                    yield Static(t("dash_card_tools_desc"), classes="card-desc")
                     with Horizontal(classes="button-bar"):
-                        yield Button("Riavvia Server ADB", id="btn-restart-adb")
-                        yield Button("Attiva TCP/IP (5555)", id="btn-tcpip")
+                        yield Button(t("dash_btn_restart_adb"), id="btn-restart-adb")
+                        yield Button(t("dash_btn_tcpip"), id="btn-tcpip")
 
                 # Option 4: Demo Simulation
                 with Vertical(classes="option-card"):
-                    yield Static("🎮 Modalità Demo / Test UI", classes="card-title")
-                    yield Static(
-                        "Esplora la TUI con anteprima immagini e navigazione completa in modalità simulazione (Google Pixel 8 Pro).",
-                        classes="card-desc",
-                    )
+                    yield Static("🎮 Demo / UI Test", classes="card-title")
+                    yield Static("Google Pixel 8 Pro simulation mode with full image preview and file browsing.", classes="card-desc")
                     with Horizontal(classes="button-bar"):
-                        yield Button("Esplora in Demo", id="btn-start-demo", variant="primary")
+                        yield Button(t("dash_btn_demo"), id="btn-start-demo", variant="primary")
+
+    def update_texts(self) -> None:
+        """Refreshes text labels when language is toggled."""
+        hero_title = self.query_one("#hero-title", Static)
+        hero_sub = self.query_one("#hero-subtitle", Static)
+        hero_title.update(t("dash_hero_title"))
+        hero_sub.update(t("dash_hero_subtitle"))

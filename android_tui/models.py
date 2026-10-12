@@ -49,6 +49,10 @@ class AdbDevice:
     battery_status: str = "Unknown"
     storage_free: str = ""
     storage_total: str = ""
+    sdcard_path: str = "/sdcard"
+    ext_sd_path: Optional[str] = None
+    ext_sd_free: Optional[str] = None
+    ext_sd_total: Optional[str] = None
     ip_address: Optional[str] = None
     port: Optional[int] = None
 

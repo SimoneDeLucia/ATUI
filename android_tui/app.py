@@ -4,6 +4,7 @@ Coordinates the ADB manager, Miller Columns browser, Disconnected Dashboard,
 and interactive modals.
 """
 import os
+import subprocess
 from pathlib import Path
 from typing import Optional, List
 
@@ -12,33 +13,37 @@ from textual.binding import Binding
 from textual.widgets import DataTable
 from textual import work
 
-from .adb import AdbManager
+from .adb import AdbManager, resolve_scrcpy_path
 from .models import AdbDevice, ConnectionType, DeviceState, FileEntry, FileCategory
-from .theme import APP_CSS, is_text_previewable
-from .image_preview import load_image_thumbnail
+from .theme import CSS_FILES, is_text_previewable
+from .image_preview import get_file_thumbnail, load_media_thumbnail
 from .device_store import save_remembered_device, load_remembered_devices, clear_remembered_devices
 from .views.header import HeaderBar
 from .views.footer import FooterBar
 from .views.disconnected import DisconnectedDashboard
-from .views.browser import BrowserView
+from .views.browser import BrowserView, FileTable
 from .views.modals import (
     WirelessConnectModal,
     WirelessPairModal,
     DeviceSelectModal,
     DownloadModal,
     BatchDownloadModal,
+    BatchDeleteModal,
     UploadModal,
     CreateFolderModal,
     RenameModal,
     DeleteConfirmModal,
     HelpModal,
+    QuickJumpModal,
+    ScrcpyModal,
 )
+from .i18n import t, toggle_language, get_current_language
 
 
 class AndroidTuiApp(App):
     """Modern Android ADB File Manager TUI with PikPakTUI styling."""
 
-    CSS = APP_CSS
+    CSS_PATH = CSS_FILES
     TITLE = "AndroidTUI"
     SUB_TITLE = "ADB Terminal User Interface"
 
@@ -46,9 +51,16 @@ class AndroidTuiApp(App):
         Binding("q", "quit_app", "Esci", show=True),
         Binding("question_mark", "show_help", "Aiuto", show=True),
         Binding("c", "manage_devices", "Dispositivi", show=True),
+        Binding("m", "launch_scrcpy", "Scrcpy", show=True),
+        Binding("g", "quick_jump", "Memorie", show=True),
+        Binding("s", "cycle_sort", "Ordina", show=True),
+        Binding("S", "toggle_sort_order", "Inverti ord.", show=False),
+        Binding("f2", "toggle_language", "IT/EN", show=False),
+        Binding("ctrl+d", "disconnect_device", "Disconnetti", show=True),
         Binding("r", "refresh_view", "Ricarica", show=True),
         Binding("space", "toggle_selection", "Seleziona", show=True),
         Binding("a", "toggle_select_all", "Tutti", show=True),
+        Binding("escape", "clear_selection", "Annulla selez.", show=False),
         Binding("d", "download_entry", "Scarica", show=True),
         Binding("u", "upload_entry", "Carica", show=True),
         Binding("f", "create_folder", "Nuova cartella", show=True),
@@ -72,6 +84,8 @@ class AndroidTuiApp(App):
         self.parent_entries: List[FileEntry] = []
         self.selected_paths: set = set()
         self.selected_entries: dict = {}
+        self.sort_by: str = "name"
+        self.sort_reverse: bool = False
         self._stability_timer = None
 
 
@@ -156,6 +170,9 @@ class AndroidTuiApp(App):
             self.app.call_from_thread(self.query_one(FooterBar).show_toast, err, True)
             return
 
+        # Sort entries according to current criteria
+        entries = self._sort_entries(entries, self.sort_by, self.sort_reverse)
+
         # Calculate parent path
         clean = path.rstrip("/")
         parent = clean.rsplit("/", 1)[0] if "/" in clean else "/"
@@ -186,11 +203,10 @@ class AndroidTuiApp(App):
         self.query_one(FooterBar).update_batch_selection(0, "")
         self.query_one(FooterBar).show_toast(f"{len(entries)} elementi caricati")
 
-        # Load preview for first item if applicable
+        # Load preview for first item if applicable (supports all file categories!)
         if entries and not entries[0].is_dir:
-            if entries[0].category == FileCategory.IMAGE:
-                self.fetch_image_preview(entries[0])
-            elif is_text_previewable(entries[0].name, entries[0].is_dir):
+            self.fetch_thumbnail_preview(entries[0])
+            if is_text_previewable(entries[0].name, entries[0].is_dir):
                 self.fetch_preview(entries[0])
 
     @work(thread=True)
@@ -207,13 +223,14 @@ class AndroidTuiApp(App):
             browser.set_selected_entry(entry, preview_text=preview_text)
 
     @work(thread=True)
-    def fetch_image_preview(self, entry: FileEntry) -> None:
-        if entry.is_dir or entry.category != FileCategory.IMAGE:
+    def fetch_thumbnail_preview(self, entry: FileEntry) -> None:
+        """Loads thumbnail preview: real image/video frame or cyber category card (including prod.keys 📎)."""
+        if entry.is_dir:
             return
-        text_render, dim_str = load_image_thumbnail(entry.path, self.adb, max_width=30, max_height=14)
-        self.app.call_from_thread(self._update_image_preview_display, entry, text_render, dim_str)
+        text_render, dim_str = get_file_thumbnail(entry, self.adb, max_width=46, max_height=20)
+        self.app.call_from_thread(self._update_media_preview_display, entry, text_render, dim_str)
 
-    def _update_image_preview_display(self, entry: FileEntry, text_render, dim_str: Optional[str]) -> None:
+    def _update_media_preview_display(self, entry: FileEntry, text_render, dim_str: Optional[str]) -> None:
         selected = self.get_selected_entry()
         if selected and selected.path == entry.path:
             browser = self.query_one(BrowserView)
@@ -222,16 +239,44 @@ class AndroidTuiApp(App):
     # -------------------------------------------------------------
     # Navigation and selection events
     # -------------------------------------------------------------
+    def on_file_table_checkbox_toggled(self, event: FileTable.CheckboxToggled) -> None:
+        """Mouse click on the row checkbox square! Toggles batch selection without moving cursor."""
+        if 0 <= event.row_index < len(self.active_entries):
+            entry = self.active_entries[event.row_index]
+            if entry.path in self.selected_paths:
+                self.selected_paths.remove(entry.path)
+                self.selected_entries.pop(entry.path, None)
+            else:
+                self.selected_paths.add(entry.path)
+                self.selected_entries[entry.path] = entry
+            self._refresh_selection_state(preserve_cursor=True)
+
+    def on_file_table_select_all_toggled(self, event: FileTable.SelectAllToggled) -> None:
+        """Mouse click on the header checkbox square [✓]!"""
+        self.action_toggle_select_all()
+
+    def on_data_table_header_selected(self, event: DataTable.HeaderSelected) -> None:
+        """Mouse click on column headers to sort by Name, Size, or Type!"""
+        col = event.column_index
+        if col == 0:
+            self.action_toggle_select_all()
+        elif col == 1:
+            self.sort_directory("name")
+        elif col == 2:
+            self.sort_directory("size")
+        elif col == 3:
+            self.sort_directory("type")
+
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         idx = event.cursor_row
         if 0 <= idx < len(self.active_entries):
             entry = self.active_entries[idx]
             if entry.is_dir or entry.is_symlink:
                 self.load_directory(entry.path)
-            elif entry.category == FileCategory.IMAGE:
-                self.fetch_image_preview(entry)
-            elif is_text_previewable(entry.name, entry.is_dir):
-                self.fetch_preview(entry)
+            else:
+                self.fetch_thumbnail_preview(entry)
+                if is_text_previewable(entry.name, entry.is_dir):
+                    self.fetch_preview(entry)
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         idx = event.cursor_row
@@ -239,10 +284,95 @@ class AndroidTuiApp(App):
             entry = self.active_entries[idx]
             self.query_one(BrowserView).set_selected_entry(entry)
             if not entry.is_dir:
-                if entry.category == FileCategory.IMAGE:
-                    self.fetch_image_preview(entry)
-                elif is_text_previewable(entry.name, entry.is_dir):
+                self.fetch_thumbnail_preview(entry)
+                if is_text_previewable(entry.name, entry.is_dir):
                     self.fetch_preview(entry)
+
+    # -------------------------------------------------------------
+    # Sorting logic (Name, Size, Type)
+    # -------------------------------------------------------------
+    def _sort_entries(self, entries: List[FileEntry], sort_by: str, reverse: bool) -> List[FileEntry]:
+        dirs = [e for e in entries if e.is_dir]
+        files = [e for e in entries if not e.is_dir]
+
+        if sort_by == "name":
+            dirs.sort(key=lambda x: x.name.lower(), reverse=reverse)
+            files.sort(key=lambda x: x.name.lower(), reverse=reverse)
+        elif sort_by == "size":
+            dirs.sort(key=lambda x: x.name.lower())
+            files.sort(key=lambda x: x.size, reverse=reverse)
+        elif sort_by == "type":
+            dirs.sort(key=lambda x: x.name.lower())
+            files.sort(key=lambda x: (x.category.value, x.extension.lower(), x.name.lower()), reverse=reverse)
+
+        return dirs + files
+
+    def sort_directory(self, column: str) -> None:
+        """Sorts active entries by column and updates table with sort arrow indicators."""
+        if self.sort_by == column:
+            self.sort_reverse = not self.sort_reverse
+        else:
+            self.sort_by = column
+            self.sort_reverse = False
+
+        self.active_entries = self._sort_entries(self.active_entries, self.sort_by, self.sort_reverse)
+        browser = self.query_one(BrowserView)
+        browser.update_columns(self.sort_by, self.sort_reverse)
+
+        col_name = t(f"col_{self.sort_by}") if f"col_{self.sort_by}" in ("col_name", "col_size", "col_type") else self.sort_by
+        order_name = t("order_desc") if self.sort_reverse else t("order_asc")
+        self.query_one(FooterBar).show_toast(t("sorted_by", col=col_name, order=order_name))
+
+    def action_cycle_sort(self) -> None:
+        """Keyboard shortcut (s): cycles sort mode between Name -> Size -> Type."""
+        cycle = {"name": "size", "size": "type", "type": "name"}
+        next_sort = cycle.get(self.sort_by, "name")
+        self.sort_directory(next_sort)
+
+    def action_toggle_sort_order(self) -> None:
+        """Keyboard shortcut (S): toggles ascending / descending sort order."""
+        self.sort_reverse = not self.sort_reverse
+        self.active_entries = self._sort_entries(self.active_entries, self.sort_by, self.sort_reverse)
+        browser = self.query_one(BrowserView)
+        browser.update_columns(self.sort_by, self.sort_reverse)
+        order_name = t("order_desc") if self.sort_reverse else t("order_asc")
+        col_name = t(f"col_{self.sort_by}")
+        self.query_one(FooterBar).show_toast(t("sorted_by", col=col_name, order=order_name))
+
+    # -------------------------------------------------------------
+    # Scrcpy Screen Mirroring Integration
+    # -------------------------------------------------------------
+    def action_launch_scrcpy(self) -> None:
+        """Launches scrcpy to mirror Android device screen in real time."""
+        device = self.adb.active_device
+        if not device or device.state != DeviceState.DEVICE:
+            self.query_one(FooterBar).show_toast("Nessun dispositivo pronto per Scrcpy", is_error=True)
+            return
+
+        if self.adb.demo_mode:
+            self.query_one(FooterBar).show_toast(t("scrcpy_demo_toast"))
+            return
+
+        scrcpy_bin = resolve_scrcpy_path()
+        if not scrcpy_bin:
+            self.push_screen(ScrcpyModal())
+            return
+
+        try:
+            cmd = [
+                scrcpy_bin,
+                "-s",
+                device.serial,
+                "--window-title",
+                f"AndroidTUI - {device.display_name}",
+            ]
+            subprocess.Popen(
+                cmd,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+            )
+            self.query_one(FooterBar).show_toast(t("scrcpy_launched", name=device.display_name))
+        except Exception as e:
+            self.query_one(FooterBar).show_toast(f"Errore avvio Scrcpy: {e}", is_error=True)
 
 
     def action_enter_selected(self) -> None:
@@ -282,7 +412,7 @@ class AndroidTuiApp(App):
     # Batch Selection & Multi-file Operations
     # -------------------------------------------------------------
     def action_toggle_selection(self) -> None:
-        """Toggles batch selection of currently highlighted entry."""
+        """Toggles batch selection of currently highlighted entry without moving cursor."""
         entry = self.get_selected_entry()
         if not entry:
             return
@@ -292,10 +422,10 @@ class AndroidTuiApp(App):
         else:
             self.selected_paths.add(entry.path)
             self.selected_entries[entry.path] = entry
-        self._refresh_selection_state()
+        self._refresh_selection_state(preserve_cursor=True)
 
     def action_toggle_select_all(self) -> None:
-        """Selects or deselects all files in current directory."""
+        """Selects or deselects all files in current directory without moving cursor."""
         files = [e for e in self.active_entries if not e.is_dir]
         if not files:
             return
@@ -307,9 +437,16 @@ class AndroidTuiApp(App):
             for e in files:
                 self.selected_paths.add(e.path)
                 self.selected_entries[e.path] = e
-        self._refresh_selection_state()
+        self._refresh_selection_state(preserve_cursor=True)
 
-    def _refresh_selection_state(self) -> None:
+    def action_clear_selection(self) -> None:
+        """Clears batch selection and resets batch footer bar."""
+        self.selected_paths.clear()
+        self.selected_entries.clear()
+        self._refresh_selection_state(preserve_cursor=True)
+        self.query_one(FooterBar).show_toast("Selezione annullata.")
+
+    def _refresh_selection_state(self, preserve_cursor: bool = True) -> None:
         browser = self.query_one(BrowserView)
         browser.update_browser(
             self.current_path,
@@ -317,6 +454,7 @@ class AndroidTuiApp(App):
             self.parent_path,
             self.parent_entries,
             self.selected_paths,
+            preserve_cursor=preserve_cursor,
         )
         count = len(self.selected_paths)
         total_bytes = sum(e.size for e in self.selected_entries.values())
@@ -480,6 +618,10 @@ class AndroidTuiApp(App):
             self.load_directory(self.current_path)
 
     def action_delete_entry(self) -> None:
+        if self.selected_paths:
+            self.action_delete_batch()
+            return
+
         entry = self.get_selected_entry()
         if not entry:
             return
@@ -497,6 +639,74 @@ class AndroidTuiApp(App):
         self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, not success)
         if success:
             self.load_directory(self.current_path)
+
+    def action_delete_batch(self) -> None:
+        """Prompts confirmation and performs batch deletion of all selected items."""
+        if not self.selected_paths:
+            self.query_one(FooterBar).show_toast("Nessun elemento selezionato per l'eliminazione batch.", is_error=True)
+            return
+
+        entries_to_delete = list(self.selected_entries.values())
+
+        def handle_delete_confirm(confirmed: bool) -> None:
+            if not confirmed:
+                return
+            self._do_batch_delete_worker(entries_to_delete)
+
+        self.push_screen(BatchDeleteModal(entries=entries_to_delete), handle_delete_confirm)
+
+    @work(thread=True)
+    def _do_batch_delete_worker(self, entries: List[FileEntry]) -> None:
+        total = len(entries)
+        success_count = 0
+        for idx, entry in enumerate(entries, 1):
+            self.app.call_from_thread(
+                self.query_one(FooterBar).show_toast,
+                f"Eliminazione batch ({idx}/{total}): {entry.name}...",
+            )
+            success, _ = self.adb.delete_entry(entry.path)
+            if success:
+                success_count += 1
+
+        msg = f"Eliminazione batch completata: {success_count}/{total} elementi rimossi."
+        self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, success_count == 0)
+        self.selected_paths.clear()
+        self.selected_entries.clear()
+        self.load_directory(self.current_path)
+
+    def action_disconnect_device(self) -> None:
+        """Disconnects current device and returns to the DisconnectedDashboard."""
+        active = self.adb.active_device
+        if active:
+            dev_name = active.display_name
+            self.adb.set_active_device(None)
+            self.sync_views()
+            self.query_one(FooterBar).show_toast(t("disconnected_toast", name=dev_name))
+        else:
+            self.sync_views()
+
+    def action_quick_jump(self) -> None:
+        """Opens quick jump modal for known storage locations (internal, microSD, Downloads, DCIM, Root)."""
+        def handle_jump(target_path: Optional[str]) -> None:
+            if target_path:
+                self.load_directory(target_path)
+
+        self.push_screen(QuickJumpModal(device=self.adb.active_device), handle_jump)
+
+    def action_toggle_language(self) -> None:
+        """Toggles interface language between Italian (IT) and English (EN)."""
+        new_lang = toggle_language()
+        self.query_one(HeaderBar).update_texts()
+        self.query_one(FooterBar).update_texts()
+        self.query_one(BrowserView).update_texts()
+        self.query_one(DisconnectedDashboard).update_texts()
+        self.sync_views()
+        lang_name = "English (EN)" if new_lang == "en" else "Italiano (IT)"
+        self.query_one(FooterBar).show_toast(f"Lingua / Language: {lang_name}")
+
+    def show_no_microsd_toast(self) -> None:
+        msg = "Nessuna scheda MicroSD esterna rilevata nel dispositivo." if get_current_language() == "it" else "No external MicroSD card detected in device."
+        self.query_one(FooterBar).show_toast(msg, is_error=True)
 
     # -------------------------------------------------------------
     # Device Management & Mouse Interactions
@@ -538,6 +748,14 @@ class AndroidTuiApp(App):
             self.action_delete_entry()
         elif btn_id == "fbtn-devices":
             self.action_manage_devices()
+        elif btn_id == "fbtn-disconnect":
+            self.action_disconnect_device()
+        elif btn_id == "fbtn-batch-download":
+            self.action_download_entry()
+        elif btn_id == "fbtn-batch-delete":
+            self.action_delete_batch()
+        elif btn_id == "fbtn-batch-clear":
+            self.action_clear_selection()
         elif btn_id == "fbtn-refresh":
             self.action_refresh_view()
         elif btn_id == "fbtn-help":
@@ -608,6 +826,10 @@ class AndroidTuiApp(App):
                     battery_status="In carica",
                     storage_free="64.5 GB",
                     storage_total="128 GB",
+                    sdcard_path="/sdcard",
+                    ext_sd_path="/storage/1F2A-3B4C",
+                    ext_sd_free="112 GB",
+                    ext_sd_total="128 GB",
                 )
             )
             self._on_device_connected(self.adb.active_device)
@@ -693,6 +915,10 @@ def main() -> None:
                 battery_status="In carica",
                 storage_free="64.5 GB",
                 storage_total="128 GB",
+                sdcard_path="/sdcard",
+                ext_sd_path="/storage/1F2A-3B4C",
+                ext_sd_free="112 GB",
+                ext_sd_total="128 GB",
             )
         )
 

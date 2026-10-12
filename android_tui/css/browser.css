@@ -1,0 +1,62 @@
+/* Miller Columns Browser & Preview */
+#miller-container {
+    height: 1fr;
+    layout: horizontal;
+    padding: 0;
+}
+
+.pane {
+    height: 100%;
+    border: round #3d59a1;
+    background: #1a1b26;
+    padding: 0;
+}
+
+.pane:focus-within {
+    border: round #7dcfff;
+}
+
+#parent-pane {
+    width: 25%;
+    border: round #292e42;
+    background: #16161e;
+}
+
+#parent-pane-title:hover {
+    background: #24283b;
+    color: #73daca;
+    text-style: bold underline;
+}
+
+#current-pane {
+    width: 45%;
+    border: round #7dcfff;
+}
+
+#preview-pane {
+    width: 30%;
+    border: round #3d59a1;
+    background: #16161e;
+}
+
+#preview-image {
+    width: 100%;
+    height: auto;
+    padding: 0;
+    margin-bottom: 1;
+}
+
+#preview-content {
+    padding: 0 1;
+    height: 1fr;
+    overflow-y: auto;
+}
+
+.meta-key {
+    color: #7aa2f7;
+    text-style: bold;
+}
+
+.meta-val {
+    color: #c0caf5;
+}

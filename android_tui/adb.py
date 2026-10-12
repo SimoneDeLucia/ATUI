@@ -25,7 +25,35 @@ DEFAULT_ADB_CANDIDATES = [
     r"C:\ProgramData\chocolatey\bin\adb.exe",
     r"C:\Android\platform-tools\adb.exe",
     os.path.expanduser(r"~\AppData\Local\Android\Sdk\platform-tools\adb.exe"),
+    "/usr/bin/adb",
+    "/usr/local/bin/adb",
+    "/snap/bin/adb",
+    os.path.expanduser("~/Android/Sdk/platform-tools/adb"),
+    os.path.expanduser("~/.android-sdk/platform-tools/adb"),
 ]
+
+DEFAULT_SCRCPY_CANDIDATES = [
+    r"C:\platform-tools\scrcpy.exe",
+    r"C:\scrcpy\scrcpy.exe",
+    r"C:\Program Files\scrcpy\scrcpy.exe",
+    os.path.expanduser(r"~\AppData\Local\Microsoft\WinGet\Packages\Genymobile.scrcpy_Microsoft.Winget.Source_8wekyb3d8bbwe\scrcpy.exe"),
+    "/usr/bin/scrcpy",
+    "/usr/local/bin/scrcpy",
+    "/snap/bin/scrcpy",
+    "/opt/scrcpy/scrcpy",
+]
+
+
+def resolve_scrcpy_path() -> Optional[str]:
+    """Resolves the scrcpy executable path across Windows and Linux systems."""
+    which_scrcpy = shutil.which("scrcpy")
+    if which_scrcpy:
+        return which_scrcpy
+    for candidate in DEFAULT_SCRCPY_CANDIDATES:
+        if os.path.isfile(candidate):
+            return candidate
+    return None
+
 
 
 class AdbManager:
@@ -95,6 +123,10 @@ class AdbManager:
                     battery_status="In carica",
                     storage_free="64.5 GB",
                     storage_total="128 GB",
+                    sdcard_path="/sdcard",
+                    ext_sd_path="/storage/1F2A-3B4C",
+                    ext_sd_free="112 GB",
+                    ext_sd_total="128 GB",
                 )
             ]
 
@@ -197,7 +229,7 @@ class AdbManager:
                         dev.battery_status = "Carica completa"
 
 
-        # Storage
+        # Storage: Internal /sdcard
         code, out, _ = self.run_cmd(["shell", "df", "-h", "/sdcard"], target_serial=dev.serial)
         if code == 0:
             lines = [l for l in out.splitlines() if l.strip()]
@@ -206,6 +238,24 @@ class AdbManager:
                 if len(cols) >= 4:
                     dev.storage_total = cols[1]
                     dev.storage_free = cols[3]
+
+        # Storage: External MicroSD / USB OTG in /storage/
+        code_sd, out_sd, _ = self.run_cmd(["shell", "ls", "-d", "/storage/*"], target_serial=dev.serial)
+        if code_sd == 0:
+            for item in out_sd.splitlines():
+                path = item.strip()
+                name = path.rstrip("/").split("/")[-1]
+                if name and name not in ("emulated", "self", "knox-emulated") and not name.startswith("."):
+                    dev.ext_sd_path = path
+                    code_df, out_df, _ = self.run_cmd(["shell", "df", "-h", path], target_serial=dev.serial)
+                    if code_df == 0:
+                        df_lines = [l for l in out_df.splitlines() if l.strip()]
+                        if len(df_lines) >= 2:
+                            df_cols = df_lines[-1].split()
+                            if len(df_cols) >= 4:
+                                dev.ext_sd_total = df_cols[1]
+                                dev.ext_sd_free = df_cols[3]
+                    break
 
     def set_active_device(self, device: Optional[AdbDevice]) -> None:
         self.active_device = device

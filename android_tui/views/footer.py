@@ -1,11 +1,13 @@
 """
 Footer component for AndroidTUI.
 Displays interactive clickable action buttons for mouse interaction,
-batch selection badge, and real-time status toasts.
+batch selection badge, and real-time status toasts with i18n support.
 """
 from textual.app import ComposeResult
 from textual.containers import Horizontal
 from textual.widgets import Static, Button
+
+from ..i18n import t
 
 
 class FooterBar(Static):
@@ -13,27 +15,58 @@ class FooterBar(Static):
 
     def __init__(self, **kwargs):
         super().__init__(id="footer-bar", **kwargs)
-        self._current_toast = "Pronto."
+        self._current_toast = t("ready")
+        self._batch_count = 0
+        self._batch_size_str = ""
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="footer-buttons-row"):
-            yield Button("⏎ Apri", id="fbtn-enter", classes="footer-pill")
-            yield Button("␣ Seleziona", id="fbtn-select", classes="footer-pill")
-            yield Button("📥 Scarica", id="fbtn-download", classes="footer-pill")
-            yield Button("📤 Carica", id="fbtn-upload", classes="footer-pill")
-            yield Button("📁 Cartella", id="fbtn-mkdir", classes="footer-pill")
-            yield Button("✏️ Rinomina", id="fbtn-rename", classes="footer-pill")
-            yield Button("🗑️ Elimina", id="fbtn-delete", classes="footer-pill")
-            yield Button("📱 Dispositivi", id="fbtn-devices", classes="footer-pill")
-            yield Button("🔄 Ricarica", id="fbtn-refresh", classes="footer-pill")
-            yield Button("❓ Aiuto", id="fbtn-help", classes="footer-pill")
-            yield Button("✕ Esci", id="fbtn-quit", classes="footer-pill")
+            yield Button(t("fbtn_enter"), id="fbtn-enter", classes="footer-pill")
+            yield Button(t("fbtn_select"), id="fbtn-select", classes="footer-pill")
+            yield Button(t("fbtn_download"), id="fbtn-download", classes="footer-pill")
+            yield Button(t("fbtn_upload"), id="fbtn-upload", classes="footer-pill")
+            yield Button(t("fbtn_mkdir"), id="fbtn-mkdir", classes="footer-pill")
+            yield Button(t("fbtn_rename"), id="fbtn-rename", classes="footer-pill")
+            yield Button(t("fbtn_delete"), id="fbtn-delete", classes="footer-pill")
+            yield Button(t("fbtn_devices"), id="fbtn-devices", classes="footer-pill")
+            yield Button(t("fbtn_disconnect"), id="fbtn-disconnect", classes="footer-pill")
+            yield Button(t("fbtn_refresh"), id="fbtn-refresh", classes="footer-pill")
+            yield Button(t("fbtn_help"), id="fbtn-help", classes="footer-pill")
+            yield Button(t("fbtn_quit"), id="fbtn-quit", classes="footer-pill")
 
         with Horizontal(id="footer-status-row"):
             yield Static("", id="footer-batch-badge")
+            with Horizontal(id="footer-batch-actions"):
+                yield Button(t("fbtn_batch_dl", count=0), id="fbtn-batch-download", classes="batch-pill-download")
+                yield Button(t("fbtn_batch_del", count=0), id="fbtn-batch-delete", classes="batch-pill-delete")
+                yield Button(t("fbtn_batch_clear"), id="fbtn-batch-clear", classes="batch-pill-clear")
             yield Static(self._current_toast, id="footer-toast")
 
+    def update_texts(self) -> None:
+        """Refreshes localized button labels in the footer."""
+        buttons_map = {
+            "#fbtn-enter": "fbtn_enter",
+            "#fbtn-select": "fbtn_select",
+            "#fbtn-download": "fbtn_download",
+            "#fbtn-upload": "fbtn_upload",
+            "#fbtn-mkdir": "fbtn_mkdir",
+            "#fbtn-rename": "fbtn_rename",
+            "#fbtn-delete": "fbtn_delete",
+            "#fbtn-devices": "fbtn_devices",
+            "#fbtn-disconnect": "fbtn_disconnect",
+            "#fbtn-refresh": "fbtn_refresh",
+            "#fbtn-help": "fbtn_help",
+            "#fbtn-quit": "fbtn_quit",
+            "#fbtn-batch-clear": "fbtn_batch_clear",
+        }
+        for sel, key in buttons_map.items():
+            btn = self.query_one(sel, Button)
+            btn.label = t(key)
+
+        self.update_batch_selection(self._batch_count, self._batch_size_str)
+
     def show_toast(self, message: str, is_error: bool = False) -> None:
+        self._current_toast = message
         toast_widget = self.query_one("#footer-toast", Static)
         if is_error:
             toast_widget.update(f"❌ {message}")
@@ -43,10 +76,21 @@ class FooterBar(Static):
             toast_widget.styles.color = "#73daca"
 
     def update_batch_selection(self, count: int, total_size_str: str) -> None:
+        self._batch_count = count
+        self._batch_size_str = total_size_str
+
         badge = self.query_one("#footer-batch-badge", Static)
+        batch_actions = self.query_one("#footer-batch-actions", Horizontal)
+        btn_dl = self.query_one("#fbtn-batch-download", Button)
+        btn_del = self.query_one("#fbtn-batch-delete", Button)
+
         if count > 0:
-            badge.update(f" 🧺 {count} selezionati ({total_size_str}) ")
+            badge.update(t("batch_badge", count=count, size=total_size_str))
             badge.styles.display = "block"
+            btn_dl.label = t("fbtn_batch_dl", count=count)
+            btn_del.label = t("fbtn_batch_del", count=count)
+            batch_actions.styles.display = "block"
         else:
             badge.update("")
             badge.styles.display = "none"
+            batch_actions.styles.display = "none"

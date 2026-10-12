@@ -1,43 +1,42 @@
 # ⚡ AndroidTUI — ADB Terminal User Interface
 
+[🇮🇹 Italiano](README.md) | [🇬🇧 English](README_EN.md)
+
 > **Un gestore file system Android da terminale potente, elegante e reattivo, basato sui comandi ADB e ispirato all'estetica Miller Columns di [pikpaktui](https://github.com/Bengerthelorf/pikpaktui).**
 
 ---
 
 ## 🌟 Caratteristiche Principali
 
+- 🖱️ **Riquadri di Selezione Checkbox Cliccabili con il Mouse**:
+  - Colonna dedicata `[✓]` per selezionare o deselezionare file singoli con un click del mouse senza muovere il cursore né perdere la posizione.
+  - Cliccando sull'intestazione `[✓]` seleziona o deseleziona tutti i file della cartella.
+- 🖼️ **Anteprime Grafiche con Thumbnail per Tutte le Tipologie di File**:
+  - Grafica cyber in stile truecolor half-block per tutte le categorie: **APK** (Mascotte Android verde), **Audio** (Equalizzatore/Waveform), **Documenti** (Foglio con piega), **Archivi** (Scatola con cerniera), **Codice Sorgente** (Console e sintassi), **Binari di Sistema** (Microprocessore CPU).
+  - **Anteprima di Default per File Non Riconosciuti**: Card dedicata con stemma della Graffetta `📎` per formati non noti (es. `prod.keys`), con indicazione dell'estensione e dettagli del file.
+  - Anteprima fotografica ad alta risoluzione (JPG, PNG, HEIC, WEBP, GIF) ed estrazione frame video MP4 tramite FFmpeg.
+- 🔄 **Ordinamento per Nome, Dimensione e Tipologia (Mouse e Tastiera)**:
+  - Clicca sull'intestazione della colonna (`Nome`, `Dimensione`, `Tipo`) per ordinare all'istante con frecce indicatrici (`▲` / `▼`).
+  - Tramite tastiera: premi `s` per ciclare il criterio di ordinamento (Nome → Dimensione → Tipo), premi `S` (Shift+S) per invertire l'ordine (Crescente ↔ Decrescente).
+- 🖥️ **Condivisione Schermo Integrata con Scrcpy**:
+  - Integrazione nativa con [scrcpy](https://github.com/genymobile/scrcpy) per visualizzare e controllare lo schermo del dispositivo Android in tempo reale con bassissima latenza.
+  - Avvia con un click sul pulsante `[ 🖥️ Scrcpy ]` nell'header oppure con la scorciatoia da tastiera `m`.
+  - Finestra informativa guidata se Scrcpy non è presente sul sistema.
+- 📦 **Installer Windows .msi e Compatibilità Linux Nativa**:
+  - Installer Windows `.msi` configurabile (`installer/dist/AndroidTUI-Setup.msi` o `build_installer.ps1`) che scarica e installa automaticamente i driver Google ADB USB ufficiali e i platform-tools.
+  - Compatibilità Linux completa: script di avvio `atui`, regole udev `installer/51-android.rules` per accesso non-root USB e script `installer/install_linux.sh`.
+  - Branch Git separato `linux` per isolamento e manutenzione su distribuzioni Linux.
 - 🖥️ **Interfaccia a 3 Colonne (Miller Columns)**:
-  - **Colonna Genitore**: Panoramica della cartella superiore per mantenere sempre l'orientamento spaziale.
-  - **Colonna Attiva**: Lista file navigabile con icone per categoria, indicatori di directory, dimensioni formattate, date e permessi.
-  - **Colonna Anteprima**: Scheda dettagli, metadati completi del file, anteprima del testo in tempo reale per file di codice/config/documenti e scorciatoie per il download.
-- 🔌 **Doppia Modalità di Connessione**:
-  - **USB Debugging**: Rilevamento automatico plug-and-play, gestione stati `device`, `offline` e `unauthorized`.
-  - **Wireless Debugging (Android 11+)**: Supporto completo sia per la connessione diretta (`IP:Porta`) sia per l'accoppiamento con codice a 6 cifre (`adb pair`).
-  - **TCP/IP over USB**: Abilita la modalità wireless sulla porta 5555 con un click se il telefono è inizialmente collegato via cavo.
-- ⚠️ **Dashboard di Disconnessione Intelligente**:
-  - Quando nessun telefono è collegato o il dispositivo è offline, la schermata principale mostra un menù chiaro con opzioni dedicate a USB, Wireless, diagnostica server ADB e modalità Demo.
-- 📥 **Trasferimento File Bidirezionale**:
-  - **Download su PC (`adb pull`)**: Scarica file singoli o intere cartelle dal telefono al computer con conferma del percorso.
-  - **Upload su Telefono (`adb push`)**: Invia file o cartelle dal PC direttamente nella directory corrente del dispositivo Android.
-- 🛠️ **Operazioni File System Complete**:
-  - Crea cartelle (`mkdir -p`)
-  - Rinomina file e cartelle (`mv`)
-  - Elimina in sicurezza con dialogo di conferma (`rm -rf`)
-  - Aggiornamento in tempo reale (`refresh`)
-- 🎮 **Modalità Demo / Simulatore**:
-  - Consente di esplorare e testare tutte le funzionalità e l'estetica della TUI anche senza un telefono collegato fisicamente.
-
----
-
-## 🎨 Design & Palette Ispirata a PikPakTUI
-
-| Componente | Stile | Ispirazione PikPakTUI |
-| :--- | :--- | :--- |
-| **Sfondo** | `#1a1b26` (Tokyo Night / Slate) | Dark theme ad alto contrasto |
-| **Bordi** | Arrotondati con accento `#7dcfff` (Cyber Cyan) | `BorderType::Rounded` |
-| **Icone File** | 📁 Cartelle, 🖼️ Immagini, 🎬 Video, 🎵 Audio, 🤖 APK, 📄 Documenti, 💻 Codice | Sistema di categorizzazione estensioni |
-| **Barra Superiore** | Badge dispositivo, stato batteria 🔋, spazio libero 💾 e percorso 📱 | Breadcrumbs e barra di stato |
-| **Barra Inferiore** | Scorciatoie da tastiera e notifiche toast (`✓ Successo`, `❌ Errore`) | Feedback rapido non bloccante |
+  - **Colonna Genitore**: Panoramica della cartella superiore con voce `⬆️ ..` navigabile con cursore da tastiera o cliccabile con mouse per salire istantaneamente.
+  - **Colonna Attiva**: Lista file con checkbox dedicate, dimensioni formattate, categoria, date e permessi.
+  - **Colonna Anteprima**: Card grafiche ad alta risoluzione e visualizzatore testo scorrevole per codice e documenti.
+- 📱 **Header Dispositivo con Locazioni di Memoria Note**:
+  - Mostra lo stato di connessione (USB / Wireless), latenza segnale, batteria, e versione Android.
+  - Scorciatoie rapide: **Memoria Interna** (`/sdcard`) e **MicroSD Esterna** (`/storage/XXXX-XXXX`) con tasti `[📱 Interna]` e `[💾 MicroSD]` o tasto `g`.
+- 🌐 **Supporto Bilingue Completo (Italiano / Inglese)**:
+  - Cambio lingua istantaneo con un click (`[🌐 IT / EN]`) o tasto `F2`.
+- 🎨 **Architettura CSS Modulare**:
+  - File separati in `android_tui/css/` (`base.css`, `header.css`, `footer.css`, `browser.css`, `dashboard.css`, `modals.css`).
 
 ---
 
@@ -49,12 +48,21 @@
 | `k` / `↑` | **Su** | Sposta il cursore verso l'alto nella lista file |
 | `Enter` / `l` | **Apri** | Entra nella cartella selezionata o apre il download per i file |
 | `Backspace` / `h` | **Genitore** | Torna alla cartella superiore |
-| `d` | **Scarica su PC** | Esegue `adb pull` del file o cartella selezionata sul tuo PC |
+| `Spazio` | **Seleziona** | Seleziona/deseleziona file per operazioni batch (mantiene il cursore) |
+| `a` | **Tutti** | Seleziona o deseleziona tutti i file |
+| `s` | **Ordina** | Cicla criterio di ordinamento (Nome → Dimensione → Tipo) |
+| `S` (Shift+S) | **Inverti Ordine** | Inverte l'ordinamento (Crescente ↔ Decrescente) |
+| `m` | **Scrcpy** | Condivide lo schermo del dispositivo con scrcpy |
+| `Esc` | **Annulla Selez.** | Cancella la selezione batch attiva |
+| `g` | **Memorie (Jump)** | Finestra di navigazione rapida (Interna, MicroSD, Download, DCIM, Root) |
+| `F2` | **Lingua** | Cambia lingua tra Italiano e Inglese |
+| `d` | **Scarica su PC** | Esegue `adb pull` del file o dei file selezionati |
 | `u` | **Carica da PC** | Esegue `adb push` di un file dal tuo PC al telefono |
 | `f` | **Nuova Cartella** | Crea una nuova directory sul telefono (`mkdir -p`) |
 | `n` | **Rinomina** | Modifica il nome del file o cartella (`mv`) |
-| `x` | **Elimina** | Elimina l'elemento selezionato con finestra di conferma |
-| `c` | **Dispositivi** | Apre il menu di selezione e gestione dispositivi ADB |
+| `x` | **Elimina** | Elimina elemento/i con finestra di conferma |
+| `c` | **Dispositivi** | Apre il menu di gestione e selezione dispositivi ADB |
+| `Ctrl+D` | **Disconnetti** | Disconnette il dispositivo attivo e torna al menu principale |
 | `r` | **Ricarica** | Aggiorna la vista e riscatta i file da ADB |
 | `?` | **Aiuto** | Mostra la finestra di aiuto e comandi |
 | `q` | **Esci** | Chiude AndroidTUI |

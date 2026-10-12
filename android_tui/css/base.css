@@ -1,0 +1,83 @@
+/* Base Screen & Typography */
+Screen {
+    background: #1a1b26;
+    color: #c0caf5;
+    layout: vertical;
+}
+
+/* Global Buttons */
+Button {
+    margin-left: 1;
+    min-width: 12;
+    background: #3d59a1;
+    color: #c0caf5;
+    border: none;
+}
+
+Button:hover {
+    background: #7dcfff;
+    color: #1a1b26;
+    text-style: bold;
+}
+
+Button.-primary {
+    background: #7aa2f7;
+    color: #1a1b26;
+    text-style: bold;
+}
+
+Button.-primary:hover {
+    background: #7dcfff;
+    color: #1a1b26;
+}
+
+Button.-danger {
+    background: #f7768e;
+    color: #1a1b26;
+    text-style: bold;
+}
+
+/* Global Inputs */
+Input {
+    border: round #414868;
+    background: #16161e;
+    color: #c0caf5;
+    margin-bottom: 1;
+}
+
+Input:focus {
+    border: round #7dcfff;
+}
+
+/* Lists and Tables */
+DataTable {
+    background: transparent;
+    height: 1fr;
+}
+
+DataTable > .datatable--header {
+    background: #24283b;
+    color: #7dcfff;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: #33467c;
+    color: #ffffff;
+    text-style: bold;
+}
+
+ListView {
+    background: transparent;
+    height: 1fr;
+}
+
+ListItem {
+    padding: 0 1;
+}
+
+ListItem.-selected {
+    background: #33467c;
+    color: #ffffff;
+    text-style: bold;
+}

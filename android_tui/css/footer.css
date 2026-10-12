@@ -1,0 +1,104 @@
+/* Footer Bar & Mouse Actions */
+#footer-bar {
+    dock: bottom;
+    height: 4;
+    background: #16161e;
+    border-top: heavy #3d59a1;
+    layout: vertical;
+    padding: 0 1;
+}
+
+#footer-buttons-row {
+    height: 1;
+    layout: horizontal;
+    align: left middle;
+}
+
+.footer-pill {
+    min-width: 6;
+    height: 1;
+    margin-right: 1;
+    padding: 0 1;
+    background: #24283b;
+    color: #7aa2f7;
+    border: none;
+    text-style: bold;
+}
+
+.footer-pill:hover {
+    background: #7dcfff;
+    color: #1a1b26;
+}
+
+#footer-status-row {
+    height: 1;
+    layout: horizontal;
+    align: left middle;
+}
+
+#footer-batch-badge {
+    background: #73daca;
+    color: #1a1b26;
+    text-style: bold;
+    padding: 0 1;
+    margin-right: 1;
+    display: none;
+}
+
+#footer-batch-actions {
+    width: auto;
+    height: 1;
+    margin-right: 1;
+    display: none;
+}
+
+.batch-pill-download {
+    min-width: 14;
+    height: 1;
+    background: #73daca;
+    color: #1a1b26;
+    border: none;
+    text-style: bold;
+    margin-right: 1;
+}
+
+.batch-pill-download:hover {
+    background: #00ffcc;
+    color: #000000;
+}
+
+.batch-pill-delete {
+    min-width: 14;
+    height: 1;
+    background: #f7768e;
+    color: #1a1b26;
+    border: none;
+    text-style: bold;
+    margin-right: 1;
+}
+
+.batch-pill-delete:hover {
+    background: #ff5577;
+    color: #ffffff;
+}
+
+.batch-pill-clear {
+    min-width: 10;
+    height: 1;
+    background: #414868;
+    color: #c0caf5;
+    border: none;
+    text-style: bold;
+    margin-right: 1;
+}
+
+.batch-pill-clear:hover {
+    background: #565f89;
+    color: #ffffff;
+}
+
+#footer-toast {
+    width: auto;
+    color: #73daca;
+    text-style: bold;
+}

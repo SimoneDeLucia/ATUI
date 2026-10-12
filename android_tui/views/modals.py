@@ -13,6 +13,7 @@ from textual.widgets import Static, Input, Button, ListView, ListItem, Label
 from rich.text import Text
 
 from ..models import AdbDevice, ConnectionType, DeviceState, FileEntry
+from ..i18n import t
 
 
 # -----------------------------------------------------------------
@@ -93,7 +94,7 @@ class DeviceSelectModal(ModalScreen[Optional[AdbDevice]]):
             yield Static("Elenco dei dispositivi rilevati dal server ADB:", classes="modal-subtitle")
             
             with ListView(id="device-list"):
-                for dev in self.devices:
+                for idx, dev in enumerate(self.devices):
                     icon = "🔌" if dev.connection_type == ConnectionType.USB else (
                         "📶" if dev.connection_type == ConnectionType.WIRELESS else "🎮"
                     )
@@ -102,11 +103,16 @@ class DeviceSelectModal(ModalScreen[Optional[AdbDevice]]):
                     t.append(f"{icon} {dev.display_name} ", style="bold #c0caf5")
                     t.append(f"({dev.serial}) ", style="dim")
                     t.append(f"[{dev.state.value.upper()}]", style=f"bold {state_color}")
-                    yield ListItem(Label(t), id=f"dev-{dev.serial}")
+                    yield ListItem(Label(t), id=f"dev-item-{idx}")
 
             with Horizontal(classes="button-bar"):
                 yield Button("Seleziona", id="btn-select", variant="primary")
                 yield Button("Chiudi", id="btn-cancel")
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        idx = event.list_view.index
+        if idx is not None and 0 <= idx < len(self.devices):
+            self.dismiss(self.devices[idx])
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-select":
@@ -119,6 +125,37 @@ class DeviceSelectModal(ModalScreen[Optional[AdbDevice]]):
             self.dismiss(None)
         else:
             self.dismiss(None)
+
+
+# -----------------------------------------------------------------
+# 3b. Batch Delete Confirmation Modal
+# -----------------------------------------------------------------
+class BatchDeleteModal(ModalScreen[bool]):
+    """Modal to confirm batch deletion of multiple selected files."""
+
+    def __init__(self, entries: List[FileEntry], **kwargs):
+        super().__init__(**kwargs)
+        self.entries = entries
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-dialog"):
+            yield Static("⚠️ Conferma Eliminazione Multipla (Batch)", classes="modal-title")
+            names_preview = ", ".join(e.name for e in self.entries[:4])
+            if len(self.entries) > 4:
+                names_preview += f" ... e altri {len(self.entries) - 4} file"
+            yield Static(
+                f"Sei sicuro di voler eliminare definitivamente [bold #f7768e]{len(self.entries)} elementi[/] dal telefono?\n\n"
+                f"[dim]Elementi: {names_preview}[/]\n\n"
+                f"[bold #f7768e]Questa operazione è irreversibile e cancellerà i file selezionati.[/]",
+                classes="modal-subtitle",
+            )
+            with Horizontal(classes="button-bar"):
+                yield Button(f"Elimina Tutti ({len(self.entries)})", id="btn-delete", variant="error")
+                yield Button("Annulla", id="btn-cancel")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(event.button.id == "btn-delete")
+
 
 
 # -----------------------------------------------------------------
@@ -352,3 +389,95 @@ class HelpModal(ModalScreen[None]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(None)
+
+
+# -----------------------------------------------------------------
+# 10. Quick Storage Jump Modal
+# -----------------------------------------------------------------
+class QuickJumpModal(ModalScreen[Optional[str]]):
+    """Modal to jump quickly to known storage locations with keyboard or mouse."""
+
+    def __init__(self, device: Optional[AdbDevice], **kwargs):
+        super().__init__(**kwargs)
+        self.device = device
+        self.locations: List[tuple] = []
+
+        # 1. Internal Storage
+        int_free = f" ({device.storage_free} lib.)" if device and device.storage_free else ""
+        self.locations.append((f"{t('header_internal')}: /sdcard{int_free}", "/sdcard", "📱"))
+
+        # 2. External MicroSD
+        if device and device.ext_sd_path:
+            sd_free = f" ({device.ext_sd_free} lib.)" if device.ext_sd_free else ""
+            self.locations.append((f"{t('header_sd')}: {device.ext_sd_path}{sd_free}", device.ext_sd_path, "💾"))
+        else:
+            self.locations.append((f"{t('header_sd')}: ({t('header_no_sd')})", "", "💾"))
+
+        # 3. Downloads
+        self.locations.append(("Downloads: /sdcard/Download", "/sdcard/Download", "📥"))
+
+        # 4. Photos / Camera (DCIM)
+        self.locations.append(("DCIM (Fotocamera): /sdcard/DCIM", "/sdcard/DCIM", "📷"))
+
+        # 5. Pictures
+        self.locations.append(("Pictures: /sdcard/Pictures", "/sdcard/Pictures", "🖼️"))
+
+        # 6. System Root
+        self.locations.append(("Root di Sistema: /", "/", "⚙️"))
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-dialog"):
+            yield Static(t("modal_jump_title"), classes="modal-title")
+            yield Static(t("modal_jump_desc"), classes="modal-subtitle")
+            with ListView(id="jump-list"):
+                for idx, (label, path, icon) in enumerate(self.locations):
+                    t_text = Text()
+                    t_text.append(f"{icon} ", style="bold #7dcfff")
+                    t_text.append(label, style="bold #c0caf5" if path else "dim #565f89")
+                    yield ListItem(Label(t_text), id=f"jump-item-{idx}")
+            with Horizontal(classes="button-bar"):
+                yield Button(t("btn_select"), id="btn-select", variant="primary")
+                yield Button(t("btn_cancel"), id="btn-cancel")
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        idx = event.list_view.index
+        if idx is not None and 0 <= idx < len(self.locations):
+            _, path, _ = self.locations[idx]
+            if path:
+                self.dismiss(path)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-select":
+            list_view = self.query_one("#jump-list", ListView)
+            idx = list_view.index
+            if idx is not None and 0 <= idx < len(self.locations):
+                _, path, _ = self.locations[idx]
+                if path:
+                    self.dismiss(path)
+                    return
+            self.dismiss(None)
+        else:
+            self.dismiss(None)
+
+
+# -----------------------------------------------------------------
+# 9. Scrcpy Screen Mirror Info & Install Modal
+# -----------------------------------------------------------------
+class ScrcpyModal(ModalScreen[None]):
+    """Modal displaying instructions on how to install and configure scrcpy for screen mirroring."""
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-dialog"):
+            yield Static(t("scrcpy_modal_title"), classes="modal-title")
+            yield Static(t("scrcpy_modal_desc"), classes="modal-subtitle")
+            yield Static(
+                f"[bold #73daca]{t('scrcpy_install_guide')}[/]",
+                classes="modal-subtitle",
+            )
+            with Horizontal(classes="button-bar"):
+                yield Button(t("btn_close"), id="btn-close", variant="primary")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        self.dismiss(None)
+
+

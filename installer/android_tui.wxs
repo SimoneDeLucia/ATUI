@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <!--
+    AndroidTUI WiX Installer Definition
+    Features:
+    - Customizable Install Directory ([ProgramFiles64Folder]AndroidTUI)
+    - Google ADB Platform-Tools bundling
+    - Google USB Driver payload and automatic registration via pnputil
+    - System PATH environment registration for 'atui' command
+    - Start Menu & Desktop Shortcuts
+  -->
+  <Product Id="*"
+           Name="AndroidTUI"
+           Language="1033"
+           Version="1.0.0"
+           Manufacturer="AndroidTUI Team"
+           UpgradeCode="{5D877A6C-32BD-4F71-B845-6677C1DE29A1}">
+
+    <Package InstallerVersion="300"
+             Compressed="yes"
+             InstallScope="perMachine"
+             Description="AndroidTUI - Terminal UI for Android ADB" />
+
+    <MajorUpgrade DowngradeErrorMessage="Una versione più recente di AndroidTUI è già installata." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <!-- Directory Layout -->
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLDIR" Name="AndroidTUI">
+          <Directory Id="DriversDir" Name="drivers" />
+          <Directory Id="PlatformToolsDir" Name="platform-tools" />
+        </Directory>
+      </Directory>
+
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="ApplicationProgramsFolder" Name="AndroidTUI" />
+      </Directory>
+      <Directory Id="DesktopFolder" Name="Desktop" />
+    </Directory>
+
+    <!-- Components -->
+    <DirectoryRef Id="INSTALLDIR">
+      <Component Id="MainExecutable" Guid="{7C95B942-87C2-431A-98C1-87BA2C2C6701}">
+        <File Id="AtuiCmd" Source="..\atui.cmd" KeyPath="yes">
+          <Shortcut Id="DesktopShortcut"
+                    Directory="DesktopFolder"
+                    Name="AndroidTUI"
+                    WorkingDirectory="INSTALLDIR"
+                    Advertise="yes" />
+          <Shortcut Id="StartMenuShortcut"
+                    Directory="ApplicationProgramsFolder"
+                    Name="AndroidTUI"
+                    WorkingDirectory="INSTALLDIR"
+                    Advertise="yes" />
+        </File>
+        <File Id="AndroidTuiCmd" Source="..\androidtui.cmd" />
+        <File Id="PyProjectToml" Source="..\pyproject.toml" />
+      </Component>
+
+      <!-- System PATH Registration -->
+      <Component Id="PathEnvironment" Guid="{8D06C053-98D3-442B-A9D2-98CB3D3D7812}">
+        <Environment Id="UpdatePath"
+                     Name="PATH"
+                     Value="[INSTALLDIR]"
+                     Permanent="no"
+                     Part="last"
+                     Action="set"
+                     System="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- Google USB Driver Installation Helper -->
+    <DirectoryRef Id="DriversDir">
+      <Component Id="DriverPayload" Guid="{9E17D164-09E4-453C-BAE3-09DC4E4E8923}">
+        <File Id="InstallDriverCmd" Source="install_driver.cmd" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- Start Menu Folder Cleanup -->
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="ApplicationShortcut" Guid="{AF28E275-1AE5-464D-8BF4-1AED5F5F9034}">
+        <RemoveFolder Id="CleanUpShortCut" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\AndroidTUI" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- Custom Action: Run pnputil to install Google ADB Drivers -->
+    <CustomAction Id="InstallAdbDriver"
+                  Directory="DriversDir"
+                  ExeCommand="[SystemFolder]cmd.exe /c &quot;[DriversDir]install_driver.cmd&quot;"
+                  Execute="deferred"
+                  Impersonate="no"
+                  Return="ignore" />
+
+    <InstallExecuteSequence>
+      <Custom Action="InstallAdbDriver" After="InstallFiles">NOT Installed</Custom>
+    </InstallExecuteSequence>
+
+    <!-- Features -->
+    <Feature Id="MainApplication" Title="AndroidTUI" Level="1">
+      <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="PathEnvironment" />
+      <ComponentRef Id="DriverPayload" />
+      <ComponentRef Id="ApplicationShortcut" />
+    </Feature>
+
+  </Product>
+</Wix>
