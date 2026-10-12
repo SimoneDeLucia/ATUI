@@ -13,7 +13,7 @@ from ..i18n import t
 
 
 class DisconnectedDashboard(Container):
-    """Interactive dashboard displaying USB and Wireless connection options and ADB tools."""
+    """Interactive dashboard displaying USB and Wireless connection options, separate recent devices section, and ADB tools."""
 
     def __init__(self, **kwargs):
         super().__init__(id="disconnected-container", **kwargs)
@@ -23,6 +23,7 @@ class DisconnectedDashboard(Container):
             yield Static(t("dash_hero_title"), id="hero-title")
             yield Static(t("dash_hero_subtitle"), id="hero-subtitle")
 
+            # Row 1: Connection Methods (USB & Wireless side by side)
             with Horizontal(classes="connection-options-grid"):
                 # Option 1: USB Connection
                 with Vertical(classes="option-card", id="card-usb"):
@@ -32,28 +33,42 @@ class DisconnectedDashboard(Container):
                         yield Button(t("dash_btn_usb_detect"), id="btn-usb-detect", variant="primary")
                         yield Button(t("dash_btn_usb_reconnect"), id="btn-usb-reconnect")
 
-                # Option 2: Wireless Debugging & Remembered Devices
+                # Option 2: Wireless Debugging (WiFi)
                 with Vertical(classes="option-card", id="card-wireless"):
                     yield Static(t("dash_card_wifi_title"), id="card-wifi-title", classes="card-title")
+                    yield Static(t("dash_card_wifi_desc"), id="card-wifi-desc", classes="card-desc")
+                    with Horizontal(classes="card-button-bar"):
+                        yield Button(t("dash_btn_wifi_connect"), id="btn-wifi-connect", variant="primary")
+                        yield Button(t("dash_btn_wifi_pair"), id="btn-wifi-pair")
+
+            # Row 2: Dedicated Recent Devices Section (Wired & Wireless with selective removal)
+            with Horizontal(classes="connection-options-grid", id="row-recent"):
+                with Vertical(classes="option-card", id="card-recent"):
+                    yield Static(t("dash_card_recent_title"), id="card-recent-title", classes="card-title")
+                    yield Static(t("dash_card_recent_desc"), id="card-recent-desc", classes="card-desc")
                     remembered = load_remembered_devices()
                     if remembered:
-                        yield Static(f"[bold #7dcfff]{t('dash_recent_title')}:[/] (1-click)", id="card-wifi-desc", classes="card-desc")
-                        for idx, dev in enumerate(remembered[:3]):
-                            name = dev.get("name") or "Android Device"
-                            ip_port = dev.get("ip_port") or dev.get("serial") or ""
-                            last_seen = dev.get("last_seen", "")
-                            label_str = f"📶 {name} · {ip_port} ({last_seen})" if last_seen else f"📶 {name} · {ip_port}"
-                            yield Button(label_str, id=f"btn-recon-{idx}", classes="btn-remembered", variant="primary")
-                    else:
-                        yield Static(f"[dim]{t('dash_card_wifi_desc')}[/]", id="card-wifi-desc", classes="card-desc")
+                        with Vertical(id="recent-devices-list"):
+                            for idx, dev in enumerate(remembered):
+                                name = dev.get("name") or "Android Device"
+                                dev_type = dev.get("type", "wireless")
+                                icon = "🔌" if dev_type == "usb" else "📶"
+                                type_tag = "USB" if dev_type == "usb" else "WiFi"
+                                ip_or_serial = dev.get("ip_port") or dev.get("serial") or ""
+                                last_seen = dev.get("last_seen", "")
 
-                    with Horizontal(classes="card-button-bar"):
-                        yield Button(t("dash_btn_wifi_connect"), id="btn-wifi-connect")
-                        yield Button(t("dash_btn_wifi_pair"), id="btn-wifi-pair")
-                        if remembered:
+                                label_str = f"{icon} [{type_tag}] {name} · {ip_or_serial} ({last_seen})" if last_seen else f"{icon} [{type_tag}] {name} · {ip_or_serial}"
+
+                                with Horizontal(classes="recent-device-row"):
+                                    yield Button(label_str, id=f"btn-recon-{idx}", classes="btn-remembered-item", variant="primary")
+                                    yield Button(t("dash_btn_remove_device"), id=f"btn-del-recent-{idx}", classes="btn-del-item")
+
+                        with Horizontal(classes="card-button-bar", id="recent-actions-bar"):
                             yield Button(t("dash_btn_clear_history"), id="btn-clear-history")
+                    else:
+                        yield Static(f"[dim]{t('dash_no_recent')}[/]", id="recent-empty-label", classes="card-desc")
 
-            # Option 3: ADB Diagnostics & Server Tools
+            # Row 3: ADB Diagnostics & Server Tools
             with Horizontal(classes="connection-options-grid", id="row-tools"):
                 with Vertical(classes="option-card", id="card-tools"):
                     yield Static(t("dash_card_tools_title"), id="card-tools-title", classes="card-title")
@@ -75,14 +90,13 @@ class DisconnectedDashboard(Container):
 
         # Card Wireless
         self.query_one("#card-wifi-title", Static).update(t("dash_card_wifi_title"))
-        remembered = load_remembered_devices()
-        wifi_desc = self.query_one("#card-wifi-desc", Static)
-        if remembered:
-            wifi_desc.update(f"[bold #7dcfff]{t('dash_recent_title')}:[/] (1-click)")
-        else:
-            wifi_desc.update(f"[dim]{t('dash_card_wifi_desc')}[/]")
+        self.query_one("#card-wifi-desc", Static).update(t("dash_card_wifi_desc"))
         self.query_one("#btn-wifi-connect", Button).label = t("dash_btn_wifi_connect")
         self.query_one("#btn-wifi-pair", Button).label = t("dash_btn_wifi_pair")
+
+        # Card Recent
+        self.query_one("#card-recent-title", Static).update(t("dash_card_recent_title"))
+        self.query_one("#card-recent-desc", Static).update(t("dash_card_recent_desc"))
         btn_clear = self.query("#btn-clear-history")
         if btn_clear:
             btn_clear.first().label = t("dash_btn_clear_history")

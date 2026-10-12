@@ -23,7 +23,7 @@ class HeaderBar(Static):
         self.is_alive: bool = False
 
     def compose(self) -> ComposeResult:
-        yield Static("⚡ AndroidTUI", id="header-logo")
+        yield Static("⚡ ATUI", id="header-logo")
         yield Static(t("header_disconnected"), id="header-device-badge")
         yield Static("", id="header-stats")
         yield Static("📱 /sdcard", id="header-path")

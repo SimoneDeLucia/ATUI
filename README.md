@@ -153,13 +153,22 @@ AndroidTUI/
 │   └── app.py                # Applicazione principale Textual & worker asincroni
 ├── main.py                   # Script di avvio con argomenti CLI
 ├── requirements.txt          # Dipendenze Python (textual, rich)
+├── NOTICE                    # Attribuzione licenze terze parti (Apache 2.0)
 ├── LICENSE                   # Licenza GPL-3.0
 └── README.md                 # Documentazione del progetto
 ```
 
 ---
 
-## 📜 Licenza
+## 📜 Licenza & Conformità Open Source (Compliance)
 
 Questo progetto è software libero distribuito sotto i termini della licenza **GNU General Public License v3.0 (GPL-3.0)**. Consulta il file [LICENSE](LICENSE) per il testo completo della licenza.
+
+### 🤝 Crediti e Licenze di Terze Parti (Apache 2.0)
+ATUI rispetta pienamente i termini di attribuzione delle opere open source che hanno ispirato o supportano il progetto:
+- **[pikpaktui](https://github.com/Bengerthelorf/pikpaktui)** (Copyright (c) 2025 Bengerthelorf, licenza **Apache 2.0**): ispirazione progettuale per l'estetica a colonne Miller e la navigazione da terminale.
+- **[scrcpy](https://github.com/Genymobile/scrcpy)** (Copyright (c) 2018 Genymobile, licenza **Apache 2.0**): strumento utilizzato per il mirroring dello schermo Android in tempo reale, eseguito come processo esterno indipendente.
+
+> ℹ️ **Compatibilità Legale:** La licenza **Apache 2.0 è pienamente compatibile con la GPLv3** (come stabilito dalla Free Software Foundation). Tutte le note di attribuzione prescritte dalla licenza Apache sono conservate nel file [NOTICE](NOTICE).
+
 

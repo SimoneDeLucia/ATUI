@@ -18,7 +18,7 @@ from .adb import AdbManager, resolve_scrcpy_path
 from .models import AdbDevice, ConnectionType, DeviceState, FileEntry, FileCategory
 from .theme import CSS_FILES, is_text_previewable
 from .image_preview import get_file_thumbnail, load_media_thumbnail
-from .device_store import save_remembered_device, load_remembered_devices, clear_remembered_devices
+from .device_store import save_remembered_device, load_remembered_devices, clear_remembered_devices, remove_remembered_device
 from .views.header import HeaderBar
 from .views.footer import FooterBar
 from .views.disconnected import DisconnectedDashboard
@@ -48,8 +48,8 @@ class AndroidTuiApp(App):
     """Modern Android ADB File Manager TUI with PikPakTUI styling."""
 
     CSS_PATH = CSS_FILES
-    TITLE = "AndroidTUI"
-    SUB_TITLE = "ADB Terminal User Interface"
+    TITLE = "ATUI"
+    SUB_TITLE = "Android Terminal User Interface"
 
     BINDINGS = [
         Binding("q", "quit_app", "Esci", show=True),
@@ -166,12 +166,16 @@ class AndroidTuiApp(App):
         else:
             browser.display = False
             disconnected.display = True
+            try:
+                self.run_worker(disconnected.recompose())
+            except Exception:
+                pass
 
     # -------------------------------------------------------------
     # Background worker tasks for ADB
     # -------------------------------------------------------------
     @work(thread=True)
-    def scan_and_auto_connect(self) -> None:
+    def scan_and_auto_connect(self, preferred_serial: Optional[str] = None) -> None:
         if self.adb.demo_mode:
             return
         devices = self.adb.get_devices()
@@ -179,12 +183,28 @@ class AndroidTuiApp(App):
             return
         ready_devs = [d for d in devices if d.state == DeviceState.DEVICE]
 
-        if ready_devs:
-            # Auto-select the first ready device
-            self.adb.set_active_device(ready_devs[0])
-            self.app.call_from_thread(self._on_device_connected, ready_devs[0])
+        target_dev = None
+        if preferred_serial:
+            for d in ready_devs:
+                if d.serial == preferred_serial or preferred_serial in d.serial or d.display_name == preferred_serial:
+                    target_dev = d
+                    break
+            if not target_dev:
+                for d in devices:
+                    if d.serial == preferred_serial or preferred_serial in d.serial or d.display_name == preferred_serial:
+                        target_dev = d
+                        break
+
+        if not target_dev and ready_devs:
+            target_dev = ready_devs[0]
+
+        if target_dev:
+            self.adb.set_active_device(target_dev)
+            if target_dev.state == DeviceState.DEVICE:
+                self.app.call_from_thread(self._on_device_connected, target_dev)
+            else:
+                self.app.call_from_thread(self._on_device_unready, target_dev)
         elif devices:
-            # Found device but offline/unauthorized
             self.adb.set_active_device(devices[0])
             self.app.call_from_thread(self._on_device_unready, devices[0])
         else:
@@ -994,12 +1014,35 @@ class AndroidTuiApp(App):
                 idx = int(btn_id.split("-")[-1])
                 remembered = load_remembered_devices()
                 if 0 <= idx < len(remembered):
-                    target_ip_port = remembered[idx].get("ip_port") or remembered[idx].get("serial")
-                    if target_ip_port:
-                        self.query_one(FooterBar).show_toast(f"Riconnessione rapida a {target_ip_port}...")
-                        self._do_wifi_connect_worker(target_ip_port)
+                    dev_info = remembered[idx]
+                    dev_type = dev_info.get("type", "wireless")
+                    serial = dev_info.get("serial", "")
+                    ip_port = dev_info.get("ip_port", "")
+                    name = dev_info.get("name", "Dispositivo")
+
+                    if dev_type == "usb":
+                        self.query_one(FooterBar).show_toast(f"Connessione a {name} (USB)...")
+                        self.scan_and_auto_connect(preferred_serial=serial)
+                    else:
+                        target = ip_port or serial
+                        if target:
+                            self.query_one(FooterBar).show_toast(f"Riconnessione rapida a {name} ({target})...")
+                            self._do_wifi_connect_worker(target, select_serial=serial or target)
             except Exception as e:
-                self.query_one(FooterBar).show_toast(f"Errore riconnessione: {e}", is_error=True)
+                self.query_one(FooterBar).show_toast(f"Errore connessione dispositivo: {e}", is_error=True)
+
+        elif btn_id.startswith("btn-del-recent-"):
+            try:
+                idx = int(btn_id.split("-")[-1])
+                remembered = load_remembered_devices()
+                if 0 <= idx < len(remembered):
+                    target_serial = remembered[idx].get("serial") or remembered[idx].get("ip_port")
+                    if target_serial:
+                        remove_remembered_device(target_serial)
+                        self.query_one(FooterBar).show_toast(t("dash_device_removed"))
+                        self.sync_views()
+            except Exception as e:
+                self.query_one(FooterBar).show_toast(f"Errore rimozione dispositivo: {e}", is_error=True)
 
         elif btn_id == "btn-clear-history":
             clear_remembered_devices()
@@ -1045,11 +1088,11 @@ class AndroidTuiApp(App):
         self.scan_and_auto_connect()
 
     @work(thread=True)
-    def _do_wifi_connect_worker(self, addr: str) -> None:
+    def _do_wifi_connect_worker(self, addr: str, select_serial: Optional[str] = None) -> None:
         self.app.call_from_thread(self.query_one(FooterBar).show_toast, f"Connessione a {addr}...")
         success, msg = self.adb.wireless_connect(addr)
         self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, not success)
-        self.scan_and_auto_connect()
+        self.scan_and_auto_connect(preferred_serial=select_serial or addr)
 
     @work(thread=True)
     def _do_wifi_pair_worker(self, addr: str, code: str) -> None:

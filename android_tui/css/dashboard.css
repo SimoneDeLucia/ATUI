@@ -1,17 +1,20 @@
 /* Disconnected Hero Dashboard */
 #disconnected-container {
     height: 1fr;
-    align: center middle;
+    align-horizontal: center;
     padding: 1 2;
     overflow-y: auto;
+    overflow-x: hidden;
 }
 
 #disconnected-hero {
-    width: 104;
+    width: 108;
     max-width: 98%;
+    height: auto;
     border: round #7dcfff;
     background: #1f2335;
     padding: 1 2;
+    margin-bottom: 2;
 }
 
 #hero-title {
@@ -32,6 +35,10 @@
     height: auto;
     margin-top: 1;
     margin-bottom: 1;
+}
+
+#row-recent {
+    margin-top: 0;
 }
 
 #row-tools {
@@ -64,19 +71,42 @@
     height: auto;
 }
 
-.btn-remembered {
-    width: 100%;
+.recent-device-row {
+    layout: horizontal;
+    height: 3;
     margin-bottom: 1;
+    align: left middle;
+}
+
+.btn-remembered-item {
+    width: 1fr;
+    height: 3;
     background: #2f354f;
     color: #7dcfff;
     border: round #3d59a1;
     text-style: bold;
+    margin-right: 1;
 }
 
-.btn-remembered:hover {
+.btn-remembered-item:hover {
     background: #73daca;
     color: #1a1b26;
     border: round #73daca;
+}
+
+.btn-del-item {
+    width: 6;
+    min-width: 6;
+    height: 3;
+    background: #24283b;
+    color: #f7768e;
+    border: round #f7768e;
+    text-style: bold;
+}
+
+.btn-del-item:hover {
+    background: #f7768e;
+    color: #1a1b26;
 }
 
 .card-button-bar {
@@ -90,4 +120,23 @@
     margin: 0 1;
     min-width: 14;
     width: auto;
+}
+
+#recent-actions-bar {
+    layout: horizontal;
+    align: right middle;
+    height: 3;
+    margin-top: 1;
+}
+
+#recent-actions-bar Button {
+    min-width: 22;
+    width: auto;
+    background: #414868;
+    color: #c0caf5;
+}
+
+#recent-actions-bar Button:hover {
+    background: #f7768e;
+    color: #ffffff;
 }

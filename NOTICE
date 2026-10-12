@@ -1,0 +1,35 @@
+ATUI - Android Terminal User Interface
+Copyright (c) 2026 Simone De Lucia
+
+This product is licensed under the GNU General Public License version 3 (GPL-3.0).
+
+========================================================================
+Third-Party Software Credits & Compliance (Apache License, Version 2.0)
+========================================================================
+
+This project incorporates design concepts and external tool integrations
+originating from the following open-source projects, both licensed under the
+Apache License, Version 2.0:
+
+1. pikpaktui
+   Source: https://github.com/Bengerthelorf/pikpaktui
+   Copyright (c) 2025 Bengerthelorf
+   License: Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+   Used for: Architectural inspiration for Miller Columns file navigation,
+             color palettes, and terminal UI layout aesthetics.
+
+2. scrcpy
+   Source: https://github.com/Genymobile/scrcpy
+   Copyright (c) 2018 Genymobile
+   License: Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0)
+   Used for: Real-time Android screen mirroring integration. ATUI launches
+             scrcpy as a standalone external process without incorporating its
+             compiled binaries or proprietary sources.
+
+------------------------------------------------------------------------
+In accordance with Section 4 of the Apache License, Version 2.0:
+The full text of the Apache License 2.0 is available at:
+https://www.apache.org/licenses/LICENSE-2.0
+
+As confirmed by the Free Software Foundation (FSF), the Apache License 2.0
+is fully compatible with the GNU General Public License version 3 (GPL-3.0).

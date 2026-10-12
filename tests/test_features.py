@@ -216,6 +216,23 @@ async def run_compatibility_suite():
         assert hasattr(app, "_do_open_file_worker")
         print("    Direct file opening without permanent downloading verified!")
 
+        # 16. Test Recent Devices Section & Preferred Serial Connection
+        print("[16] Testing Recent Devices & Preferred Device Selection...")
+        from android_tui.device_store import save_remembered_device, load_remembered_devices, remove_remembered_device
+        save_remembered_device("test-wired-1", "Wired Test Phone", "usb")
+        save_remembered_device("192.168.1.55:5555", "WiFi Test Phone", "wireless")
+        recent = load_remembered_devices()
+        wired = next(d for d in recent if d["serial"] == "test-wired-1")
+        wifi = next(d for d in recent if d["serial"] == "192.168.1.55:5555")
+        assert wired["type"] == "usb"
+        assert wifi["type"] == "wireless"
+        # Test selective removal
+        remove_remembered_device("test-wired-1")
+        recent_after = load_remembered_devices()
+        assert not any(d["serial"] == "test-wired-1" for d in recent_after)
+        remove_remembered_device("192.168.1.55:5555")
+        print("    Selective removal & Wired/Wireless differentiation verified!")
+
         print("\n[SUCCESS] ALL INTEGRATION TESTS (ALL REQUIREMENTS) PASSED 100%!")
 
 

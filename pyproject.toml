@@ -3,11 +3,11 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "android-tui"
+name = "atui"
 version = "1.0.0"
-description = "Android Terminal User Interface for ADB File System Management"
+description = "ATUI - Android Terminal User Interface"
 readme = "README.md"
-authors = [{ name = "AndroidTUI" }]
+authors = [{ name = "Simone De Lucia" }]
 license = { text = "GPL-3.0-or-later" }
 requires-python = ">=3.10"
 dependencies = [

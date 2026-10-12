@@ -108,7 +108,15 @@ atui --help
 
 ---
 
-## 📜 License
+## 📜 License & Open Source Compliance
 
 This project is free software licensed under the **GNU General Public License v3.0 (GPL-3.0)**. See the [LICENSE](LICENSE) file for complete terms and conditions.
+
+### 🤝 Third-Party Credits & Compliance (Apache 2.0)
+ATUI respects and complies with the attribution requirements of the open-source projects that inspired or power its capabilities:
+- **[pikpaktui](https://github.com/Bengerthelorf/pikpaktui)** (Copyright (c) 2025 Bengerthelorf, **Apache 2.0** License): design and aesthetic inspiration for Miller Columns navigation and terminal interface layout.
+- **[scrcpy](https://github.com/Genymobile/scrcpy)** (Copyright (c) 2018 Genymobile, **Apache 2.0** License): real-time Android screen mirroring engine, invoked as an external independent process.
+
+> ℹ️ **Legal Compatibility:** According to the Free Software Foundation (FSF), the **Apache License 2.0 is fully compatible with GPLv3**. All required attribution notices are preserved in the [NOTICE](NOTICE) file.
+
 
