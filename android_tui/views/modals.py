@@ -9,21 +9,169 @@ import re
 import sys
 import subprocess
 from pathlib import Path
-from typing import List, Optional, Tuple, Any, Dict, Union
+from typing import List, Optional, Tuple, Any, Dict, Union, TypeVar
+from textual import events
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal, VerticalScroll
 from textual.screen import ModalScreen
-from textual.widgets import Static, Input, Button, ListView, ListItem, Label
+from textual.widgets import Static, Input as TextualInput, Button, ListView, ListItem, Label
 from rich.text import Text
 
 from ..models import AdbDevice, ConnectionType, DeviceState, FileEntry
 from ..i18n import t, get_current_language
 
+ModalResult = TypeVar("ModalResult")
+
+
+class NavigableInput(TextualInput):
+    """
+    An Input that separates navigation mode from editing/typing mode.
+    - When not editing: ignores typing characters (preventing conflict with navigation / vim mode),
+      Enter enters editing mode.
+    - When editing: user types normally.
+      Esc exits editing mode and restores arrow navigation (disabling vim toggle).
+    """
+    is_editing: bool = False
+
+    def on_blur(self) -> None:
+        if self.is_editing:
+            self.is_editing = False
+            self.remove_class("-editing")
+
+    async def _on_key(self, event: events.Key) -> None:
+        if self.is_editing:
+            if event.key == "escape":
+                self.is_editing = False
+                self.remove_class("-editing")
+                # Reset vim toggle in parent modal if applicable
+                screen = self.screen
+                if hasattr(screen, "vim_nav_mode") and screen.vim_nav_mode:
+                    screen.vim_nav_mode = False
+                    screen.remove_class("-vim-mode")
+                    screen.notify(t("modal_vim_mode_off"), severity="information", timeout=2.0)
+                event.prevent_default()
+                event.stop()
+                return
+            await super()._on_key(event)
+            return
+
+        # NOT in editing mode:
+        if event.key == "enter":
+            self.is_editing = True
+            self.add_class("-editing")
+            event.prevent_default()
+            event.stop()
+            return
+
+        # When not editing, do NOT let Textual's Input insert characters.
+        # Stop default typing behavior so characters are not inserted,
+        # but don't stop event bubbling so arrows, toggle !, j, k, escape can reach the modal.
+        event.prevent_default()
+
+
+# Alias Input to NavigableInput so all modal dialogues automatically use it
+Input = NavigableInput
+
+
+class BaseNavigableModal(ModalScreen[ModalResult]):
+    """
+    Base modal supporting standardized keyboard navigation across all submenus:
+    - Arrow keys (Up, Down, Left, Right) to navigate between widgets
+    - '!' key toggles Vim navigation mode (j/k)
+    - Enter selects/activates the focused control (or activates editing on an Input)
+    - Esc deselects editing mode on Input (and resets Vim toggle back to directional arrows) or closes the modal
+    """
+    vim_nav_mode: bool = False
+    dismiss_cancel_value: Any = None
+
+    def on_key(self, event: events.Key) -> None:
+        focused = self.focused
+
+        # If user is actively typing in a NavigableInput, do not intercept any keys!
+        if isinstance(focused, NavigableInput) and focused.is_editing:
+            return
+
+        # 1. Toggle Vim navigation mode with '!'
+        if event.key in ("exclamation_mark", "!") or event.character == "!":
+            self.vim_nav_mode = not self.vim_nav_mode
+            if self.vim_nav_mode:
+                self.add_class("-vim-mode")
+                self.notify(t("modal_vim_mode_on"), severity="information", timeout=2.0)
+            else:
+                self.remove_class("-vim-mode")
+                self.notify(t("modal_vim_mode_off"), severity="information", timeout=2.0)
+            event.prevent_default()
+            event.stop()
+            return
+
+        # 2. Close modal with Escape
+        if event.key == "escape":
+            event.prevent_default()
+            event.stop()
+            self.dismiss(self.dismiss_cancel_value)
+            return
+
+        # 3. Handle ListView navigation vs normal widget navigation
+        list_view = focused if isinstance(focused, ListView) else (
+            focused.ancestor_or_self(ListView) if hasattr(focused, "ancestor_or_self") else None
+        )
+
+        if list_view is not None:
+            if event.key == "right":
+                event.prevent_default()
+                event.stop()
+                self.focus_next()
+                return
+            elif event.key == "left":
+                event.prevent_default()
+                event.stop()
+                self.focus_previous()
+                return
+            elif self.vim_nav_mode and event.key == "j":
+                event.prevent_default()
+                event.stop()
+                if list_view.index is not None and list_view.index < len(list_view.children) - 1:
+                    list_view.action_cursor_down()
+                else:
+                    self.focus_next()
+                return
+            elif self.vim_nav_mode and event.key == "k":
+                event.prevent_default()
+                event.stop()
+                if list_view.index is not None and list_view.index > 0:
+                    list_view.action_cursor_up()
+                else:
+                    self.focus_previous()
+                return
+            # Allow native up/down inside ListView
+            return
+
+        # 4. Standard Widget Navigation (Buttons, NavigableInputs when not editing, etc.)
+        if event.key in ("down", "right") or (self.vim_nav_mode and event.key == "j"):
+            event.prevent_default()
+            event.stop()
+            self.focus_next()
+            return
+
+        if event.key in ("up", "left") or (self.vim_nav_mode and event.key == "k"):
+            event.prevent_default()
+            event.stop()
+            self.focus_previous()
+            return
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        """Default handler when an input is submitted via Enter: clicks primary submit button."""
+        submit_btn = self.query("#btn-submit")
+        if submit_btn:
+            submit_btn.first().press()
+        elif hasattr(self, "on_submit"):
+            self.on_submit()
+
 
 # -----------------------------------------------------------------
 # 1. Wireless Connect Modal
 # -----------------------------------------------------------------
-class WirelessConnectModal(ModalScreen[Optional[str]]):
+class WirelessConnectModal(BaseNavigableModal[Optional[str]]):
     """Modal to connect to an Android device via Wi-Fi IP and Port."""
 
     def compose(self) -> ComposeResult:
@@ -49,7 +197,7 @@ class WirelessConnectModal(ModalScreen[Optional[str]]):
 # -----------------------------------------------------------------
 # 2. Wireless Pair Modal
 # -----------------------------------------------------------------
-class WirelessPairModal(ModalScreen[Optional[tuple]]):
+class WirelessPairModal(BaseNavigableModal[Optional[tuple]]):
     """Modal to pair Android 11+ device using a 6-digit pairing code."""
 
     def compose(self) -> ComposeResult:
@@ -82,7 +230,7 @@ class WirelessPairModal(ModalScreen[Optional[tuple]]):
 # -----------------------------------------------------------------
 # 3. Device Selection & Addition Modal
 # -----------------------------------------------------------------
-class DeviceSelectModal(ModalScreen[Any]):
+class DeviceSelectModal(BaseNavigableModal[Any]):
     """Modal to select active device among connected USB / Wireless devices or add a new one."""
 
     def __init__(self, devices: List[AdbDevice], **kwargs):
@@ -149,8 +297,9 @@ class DeviceSelectModal(ModalScreen[Any]):
 # -----------------------------------------------------------------
 # 3b. Batch Delete Confirmation Modal
 # -----------------------------------------------------------------
-class BatchDeleteModal(ModalScreen[bool]):
+class BatchDeleteModal(BaseNavigableModal[bool]):
     """Modal to confirm batch deletion of multiple selected files."""
+    dismiss_cancel_value = False
 
     def __init__(self, entries: List[FileEntry], **kwargs):
         super().__init__(**kwargs)
@@ -297,7 +446,7 @@ def parse_file_paths(raw_input: str) -> List[str]:
     return [clean] if clean else []
 
 
-class DownloadModal(ModalScreen[Optional[str]]):
+class DownloadModal(BaseNavigableModal[Optional[str]]):
     """Modal to download selected file or folder from Phone to PC."""
 
     def __init__(self, remote_name: str, remote_path: str, default_pc_dir: str, **kwargs):
@@ -336,7 +485,7 @@ class DownloadModal(ModalScreen[Optional[str]]):
 # -----------------------------------------------------------------
 # 4b. Batch Download Modal
 # -----------------------------------------------------------------
-class BatchDownloadModal(ModalScreen[Optional[str]]):
+class BatchDownloadModal(BaseNavigableModal[Optional[str]]):
     """Modal to confirm batch downloading multiple selected files."""
 
     def __init__(self, entries: List[FileEntry], default_pc_dir: str, **kwargs):
@@ -387,7 +536,7 @@ class BatchDownloadModal(ModalScreen[Optional[str]]):
 # -----------------------------------------------------------------
 # 4c. Unified Download & Device-to-Device Transfer Modal
 # -----------------------------------------------------------------
-class DownloadDestinationModal(ModalScreen[Optional[Tuple[str, str, Optional[AdbDevice]]]]):
+class DownloadDestinationModal(BaseNavigableModal[Optional[Tuple[str, str, Optional[AdbDevice]]]]):
     """
     Modal allowing the user to download files to the local PC or directly transfer
     them between two connected Android devices with interactive folder navigation.
@@ -528,7 +677,7 @@ class DownloadDestinationModal(ModalScreen[Optional[Tuple[str, str, Optional[Adb
 # -----------------------------------------------------------------
 # 5. Upload / Push Modal
 # -----------------------------------------------------------------
-class UploadModal(ModalScreen[Optional[Union[List[str], Tuple[List[str], str]]]]):
+class UploadModal(BaseNavigableModal[Optional[Union[List[str], Tuple[List[str], str]]]]):
     """Revamped modal to upload local file(s) or folder(s) from PC to Phone,
     supporting destination path customization, subfolder navigation,
     multiple selection, native file dialogs, and quoted paths from Explorer.
@@ -702,7 +851,7 @@ class UploadModal(ModalScreen[Optional[Union[List[str], Tuple[List[str], str]]]]
 # -----------------------------------------------------------------
 # 6. Create Folder Modal
 # -----------------------------------------------------------------
-class CreateFolderModal(ModalScreen[Optional[str]]):
+class CreateFolderModal(BaseNavigableModal[Optional[str]]):
     """Modal to create a new folder on Phone."""
 
     def compose(self) -> ComposeResult:
@@ -725,7 +874,7 @@ class CreateFolderModal(ModalScreen[Optional[str]]):
 # -----------------------------------------------------------------
 # 7. Rename Modal
 # -----------------------------------------------------------------
-class RenameModal(ModalScreen[Optional[str]]):
+class RenameModal(BaseNavigableModal[Optional[str]]):
     """Modal to rename an existing item on Phone."""
 
     def __init__(self, current_name: str, **kwargs):
@@ -752,8 +901,9 @@ class RenameModal(ModalScreen[Optional[str]]):
 # -----------------------------------------------------------------
 # 8. Delete Confirm Modal
 # -----------------------------------------------------------------
-class DeleteConfirmModal(ModalScreen[bool]):
+class DeleteConfirmModal(BaseNavigableModal[bool]):
     """Modal to confirm deletion of a file or folder."""
+    dismiss_cancel_value = False
 
     def __init__(self, target_path: str, is_dir: bool, **kwargs):
         super().__init__(**kwargs)
@@ -773,13 +923,13 @@ class DeleteConfirmModal(ModalScreen[bool]):
                 yield Button(t("btn_cancel"), id="btn-cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        self.dismiss(event.button.id == "btn-delete")
+        self.dismiss(event.button.id in ("btn-delete", "btn-submit"))
 
 
 # -----------------------------------------------------------------
 # 9. Help Modal (PikPakTUI-inspired cheatsheet)
 # -----------------------------------------------------------------
-class HelpModal(ModalScreen[None]):
+class HelpModal(BaseNavigableModal[None]):
     """Modal showing all keyboard shortcuts, Raylib-Go thumbnail engine, and ADB tips."""
 
     def compose(self) -> ComposeResult:
@@ -796,7 +946,7 @@ class HelpModal(ModalScreen[None]):
 # -----------------------------------------------------------------
 # 10. Quick Storage Jump Modal
 # -----------------------------------------------------------------
-class QuickJumpModal(ModalScreen[Optional[str]]):
+class QuickJumpModal(BaseNavigableModal[Optional[str]]):
     """Modal to quickly jump to known storage locations without redundant icons."""
 
     def __init__(self, device: Optional[AdbDevice], **kwargs):
@@ -867,7 +1017,7 @@ class QuickJumpModal(ModalScreen[Optional[str]]):
 # -----------------------------------------------------------------
 # 11. Path Breadcrumbs & Subfolders Modal
 # -----------------------------------------------------------------
-class PathBreadcrumbsModal(ModalScreen[Optional[str]]):
+class PathBreadcrumbsModal(BaseNavigableModal[Optional[str]]):
     """
     Interactive Breadcrumbs Modal allowing the user to select any folder or subfolder
     along the current directory hierarchy or manually input/paste a custom destination path,
@@ -1004,7 +1154,7 @@ class PathBreadcrumbsModal(ModalScreen[Optional[str]]):
 # -----------------------------------------------------------------
 # 12. Scrcpy Screen Mirror Info & Install Modal
 # -----------------------------------------------------------------
-class ScrcpyModal(ModalScreen[None]):
+class ScrcpyModal(BaseNavigableModal[None]):
     """Modal displaying instructions on how to install and configure scrcpy for screen mirroring."""
 
     def compose(self) -> ComposeResult:
@@ -1025,7 +1175,7 @@ class ScrcpyModal(ModalScreen[None]):
 # -----------------------------------------------------------------
 # 13. Column Widths Adjustment Modal
 # -----------------------------------------------------------------
-class ColumnWidthsModal(ModalScreen[Optional[dict]]):
+class ColumnWidthsModal(BaseNavigableModal[Optional[dict]]):
     """
     Modal allowing the user to customize column widths for Name, Size, Type,
     Modified date, and Permissions, or choose between Compact, Standard, and Expanded presets.
@@ -1097,7 +1247,7 @@ class ColumnWidthsModal(ModalScreen[Optional[dict]]):
 # -----------------------------------------------------------------
 # 14. Sort Selection Modal
 # -----------------------------------------------------------------
-class SortModal(ModalScreen[Optional[str]]):
+class SortModal(BaseNavigableModal[Optional[str]]):
     """Modal allowing the user to pick sorting criterion (Name, Size, Type, Date, Perms) and invert order."""
 
     def __init__(self, current_sort: str = "name", is_reverse: bool = False, **kwargs):
@@ -1140,4 +1290,34 @@ class SortModal(ModalScreen[Optional[str]]):
             self.dismiss("invert")
         else:
             self.dismiss(None)
+
+
+# -----------------------------------------------------------------
+# 15. Disconnect Confirmation Modal
+# -----------------------------------------------------------------
+class DisconnectConfirmModal(BaseNavigableModal[bool]):
+    """Modal to confirm disconnection of the active device."""
+    dismiss_cancel_value = False
+
+    def __init__(self, device_name: str, **kwargs):
+        super().__init__(**kwargs)
+        self.device_name = device_name
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-dialog", id="disconnect-modal-dialog"):
+            yield Static(t("modal_disconnect_title"), classes="modal-title")
+            yield Static(
+                t("modal_disconnect_subtitle", name=self.device_name),
+                classes="modal-subtitle",
+            )
+            with Horizontal(classes="button-bar"):
+                yield Button(t("btn_disconnect_confirm"), id="btn-submit", variant="error")
+                yield Button(t("btn_cancel"), id="btn-cancel")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id in ("btn-submit", "btn-disconnect"):
+            self.dismiss(True)
+        else:
+            self.dismiss(False)
+
 

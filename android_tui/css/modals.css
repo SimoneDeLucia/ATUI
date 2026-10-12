@@ -184,3 +184,28 @@ ModalScreen {
     height: auto;
     margin-bottom: 1;
 }
+
+/* NavigableInput Navigation & Editing Modes */
+NavigableInput {
+    border: tall #3b4261;
+}
+
+NavigableInput:focus {
+    border: tall #7dcfff;
+}
+
+NavigableInput.-editing {
+    border: tall #73daca;
+    background: #24283b;
+}
+
+.-vim-mode .modal-dialog {
+    border: round #bb9af7;
+}
+
+#disconnect-modal-dialog {
+    width: 62;
+    max-width: 90%;
+    height: auto;
+}
+

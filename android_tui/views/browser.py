@@ -189,14 +189,15 @@ class BrowserView(Horizontal):
         """Cursor selection (Enter) or mouse click in the parent list pane."""
         if event.list_view.id == "parent-list":
             idx = event.list_view.index
-            if idx == 0:
-                # User selected "⬆️ .. [Salire alla cartella genitore]"!
-                self.app.action_go_parent()
-            elif idx is not None and 1 <= idx <= len(self.parent_entries):
-                # User selected a sibling directory!
-                target_folder = self.parent_entries[idx - 1]
+            if idx is not None and 0 <= idx < len(self.parent_entries):
+                # User selected a parent / sibling directory!
+                target_folder = self.parent_entries[idx]
                 if target_folder.is_dir or target_folder.is_symlink:
                     self.app.load_directory(target_folder.path)
+                    try:
+                        self.query_one("#current-table", FileTable).focus()
+                    except Exception:
+                        pass
 
     def on_click(self, event) -> None:
         """Clicking on parent pane title ascends; clicking current pane title opens breadcrumbs."""
@@ -230,17 +231,10 @@ class BrowserView(Horizontal):
             t("parent_pane_title", path=parent_path)
         )
 
-        # Update Parent List (Left Pane)
+        # Update Parent List (Left Pane) - Sibling folders directly, parent title already selectable
         parent_list = self.query_one("#parent-list", ListView)
         parent_list.clear()
 
-        # Item 0: Go up to parent folder (Selectable with keyboard cursor and clickable!)
-        up_text = Text()
-        up_text.append("⬆️ .. ", style="bold #e0af68")
-        up_text.append(t("parent_go_up_item"), style="bold #7dcfff")
-        parent_list.append(ListItem(Label(up_text)))
-
-        # Sibling folders start at index 1
         current_folder_name = current_path.rstrip("/").split("/")[-1]
         for p_entry in parent_entries:
             icon = get_icon(p_entry.category)

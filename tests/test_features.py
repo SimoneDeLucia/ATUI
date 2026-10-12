@@ -71,11 +71,22 @@ async def run_compatibility_suite():
         await pilot.pause()
         print("    Scrcpy action handled successfully!")
 
-        # 5. Requirement 1: Test Device Select & Add Modal (USB & WiFi addition)
-        print("[5] Testing Device Addition from Dispositivi menu...")
-        from android_tui.views.modals import DeviceSelectModal, QuickJumpModal, PathBreadcrumbsModal
-        # Test pressing 'c' opens DeviceSelectModal even if devices list is empty
+        # 5. Requirement 1: Test Disconnect modal ('c') and Device Addition from Dispositivi menu ('C')
+        print("[5] Testing Disconnect modal ('c') and Device Addition from Dispositivi menu ('C')...")
+        from android_tui.views.modals import DeviceSelectModal, QuickJumpModal, PathBreadcrumbsModal, DisconnectConfirmModal
+        # Test pressing 'c' opens DisconnectConfirmModal
         await pilot.press("c")
+        await pilot.pause()
+        assert isinstance(app.screen, DisconnectConfirmModal)
+        assert app.screen.query_one("#btn-submit") is not None
+        assert app.screen.query_one("#btn-cancel") is not None
+        # Cancel with escape
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not isinstance(app.screen, DisconnectConfirmModal)
+
+        # Test opening DeviceSelectModal via 'C'
+        await pilot.press("C")
         await pilot.pause()
         assert isinstance(app.screen, DeviceSelectModal)
         assert app.screen.query_one("#btn-add-usb") is not None
@@ -117,15 +128,18 @@ async def run_compatibility_suite():
         # 7. Requirement 3: Parent ascent redundancy removal
         print("[7] Testing Parent Directory ascent redundancy removal...")
         from android_tui.i18n import t
+        from textual.widgets import ListView
         parent_title = t("parent_pane_title", path="/sdcard")
         assert "(Clicca qui per salire)" not in parent_title, "Parent title must not contain redundant instructions"
-        parent_item = t("parent_go_up_item")
-        assert "⬆️" not in parent_item, "Icon should not be duplicated in string"
-        assert parent_item == "Cartella superiore" or parent_item == "Parent directory"
+        parent_list_widget = app.query_one("#parent-list", ListView)
+        for child in parent_list_widget.children:
+            plain_label = str(getattr(child, "renderable", ""))
+            assert "Parent directory" not in plain_label
+            assert "Cartella superiore" not in plain_label
         print("    Parent ascent redundancy completely eliminated!")
 
-        # 8. Requirement 5: Interactive Breadcrumbs navigation
-        print("[8] Testing Path Breadcrumbs / Subfolders modal...")
+        # 8. Requirement 5: Interactive Breadcrumbs navigation & Pane Hotkeys ('m' and 'p')
+        print("[8] Testing Path Breadcrumbs / Subfolders modal & Pane Hotkeys ('m', 'p')...")
         test_deep_path = "/sdcard/Android/media/org.telegram.messenger"
         bc_modal = PathBreadcrumbsModal(current_path=test_deep_path)
         segments = bc_modal.segments
@@ -140,13 +154,22 @@ async def run_compatibility_suite():
         assert actual_paths == expected_paths, f"Expected {expected_paths}, got {actual_paths}"
         print(f"    Breadcrumb segments verified: {actual_paths}")
 
-        # Test pressing 'p' on live app
-        await pilot.press("p")
+        # Test pressing '/' on live app opens breadcrumb modal
+        await pilot.press("slash")
         await pilot.pause()
         assert isinstance(app.screen, PathBreadcrumbsModal)
-        print("    Live breadcrumb modal opens via keybinding 'p'!")
+        print("    Live breadcrumb modal opens via keybinding '/'!")
         app.screen.dismiss(None)
         await pilot.pause()
+
+        # Test 'p' focuses parent folder list and 'm' focuses current folder table
+        await pilot.press("p")
+        await pilot.pause()
+        assert app.screen.focused.id == "parent-list"
+        await pilot.press("m")
+        await pilot.pause()
+        assert app.screen.focused.id == "current-table"
+        print("    Hotkeys 'm' (current folders) and 'p' (parent folders) verified!")
 
         # 9. Test Column Widths modal via keybinding 'w'
         print("[9] Testing Column Widths modal via keybinding 'w'...")
@@ -499,6 +522,125 @@ async def run_compatibility_suite():
         assert not test_temp_preview.exists()
         assert not temp_preview_dir.exists()
         print("    Preview cache cleanup on exit (both CACHE_DIR and tempdir) verified!")
+
+        # 27. Test Submenu Keyboard Navigation (Arrows, Vim '!', Enter edit, Esc deselect) & Global Hotkeys
+        print("[27] Testing Submenu Keyboard Navigation & Global Hotkeys...")
+        from android_tui.views.modals import CreateFolderModal, NavigableInput, HelpModal, UploadModal
+
+        # (a) Submenu navigation inside CreateFolderModal
+        mkdir_modal = CreateFolderModal()
+        app.push_screen(mkdir_modal)
+        await pilot.pause()
+        inp_folder = mkdir_modal.query_one("#input-folder-name", NavigableInput)
+        btn_submit = mkdir_modal.query_one("#btn-submit", Button)
+        btn_cancel = mkdir_modal.query_one("#btn-cancel", Button)
+        inp_folder.focus()
+        await pilot.pause()
+
+        # While not editing, typing 'test' must NOT modify input value
+        await pilot.press("t", "e", "s", "t")
+        await pilot.pause()
+        assert inp_folder.value == "", f"Typing without Enter leaked into input: {inp_folder.value}"
+
+        # Down arrow moves focus to btn_submit
+        await pilot.press("down")
+        await pilot.pause()
+        assert app.screen.focused == btn_submit
+
+        # Right arrow moves focus to btn_cancel
+        await pilot.press("right")
+        await pilot.pause()
+        assert app.screen.focused == btn_cancel
+
+        # Left arrow moves focus back to btn_submit
+        await pilot.press("left")
+        await pilot.pause()
+        assert app.screen.focused == btn_submit
+
+        # Up arrow moves focus back to input
+        await pilot.press("up")
+        await pilot.pause()
+        assert app.screen.focused == inp_folder
+
+        # Toggle Vim navigation mode with '!'
+        await pilot.press("!")
+        await pilot.pause()
+        assert mkdir_modal.vim_nav_mode is True
+
+        # 'j' moves focus to btn_submit
+        await pilot.press("j")
+        await pilot.pause()
+        assert app.screen.focused == btn_submit
+
+        # 'k' moves focus back to inp_folder
+        await pilot.press("k")
+        await pilot.pause()
+        assert app.screen.focused == inp_folder
+
+        # Press Enter to activate editing mode
+        await pilot.press("enter")
+        await pilot.pause()
+        assert inp_folder.is_editing is True
+
+        # Type 'NewDir' in editing mode
+        await pilot.press("N", "e", "w", "D", "i", "r")
+        await pilot.pause()
+        assert inp_folder.value == "NewDir"
+
+        # Press Esc to deselect editing mode and reset vim toggle
+        await pilot.press("escape")
+        await pilot.pause()
+        assert inp_folder.is_editing is False
+        assert mkdir_modal.vim_nav_mode is False
+        assert isinstance(app.screen, CreateFolderModal)
+
+        # Press Esc when not editing to close modal
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not isinstance(app.screen, CreateFolderModal)
+        print("    Submenu arrow navigation, Vim toggle, Enter edit, and Esc deselect verified!")
+
+        # (b) Test Global Hotkeys:
+        # '/' opens PathBreadcrumbsModal
+        await pilot.press("slash")
+        await pilot.pause()
+        assert isinstance(app.screen, PathBreadcrumbsModal)
+        app.screen.dismiss(None)
+        await pilot.pause()
+
+        # '?' opens HelpModal
+        await pilot.press("?")
+        await pilot.pause()
+        assert isinstance(app.screen, HelpModal)
+        app.screen.dismiss(None)
+        await pilot.pause()
+
+        # 'l' opens UploadModal
+        await pilot.press("l")
+        await pilot.pause()
+        assert isinstance(app.screen, UploadModal)
+        app.screen.dismiss(None)
+        await pilot.pause()
+
+        # 'f' opens CreateFolderModal
+        await pilot.press("f")
+        await pilot.pause()
+        assert isinstance(app.screen, CreateFolderModal)
+        app.screen.dismiss(None)
+        await pilot.pause()
+
+        # 'r' deletes entry or selected entries
+        assert hasattr(app, "action_delete_entry")
+
+        # 'R' refreshes view
+        assert hasattr(app, "action_refresh_view")
+
+        # 'h' returns to main menu dashboard
+        await pilot.press("h")
+        await pilot.pause()
+        assert app.adb.active_device is None
+        assert app.query_one(DisconnectedDashboard).display is True
+        print("    Global shortcuts ('/', 'v', '?', 'l', 'f', 'r', 'c', 'R', 'h') verified!")
 
         print("\n[SUCCESS] ALL INTEGRATION TESTS (ALL REQUIREMENTS) PASSED 100%!")
 

@@ -12,7 +12,7 @@ from typing import Optional, List, Any, Tuple, Union
 import atexit
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.widgets import DataTable
+from textual.widgets import DataTable, ListView
 from textual import work
 
 from .adb import AdbManager, resolve_scrcpy_path
@@ -42,6 +42,7 @@ from .views.modals import (
     PathBreadcrumbsModal,
     ScrcpyModal,
     SortModal,
+    DisconnectConfirmModal,
     parse_file_paths,
     pick_files_gui,
 )
@@ -58,28 +59,33 @@ class AndroidTuiApp(App):
     BINDINGS = [
         Binding("q", "quit_app", "Esci", show=True),
         Binding("question_mark", "show_help", "Aiuto", show=True),
-        Binding("c", "manage_devices", "Dispositivi", show=True),
-        Binding("p", "select_breadcrumb", "Percorso", show=True),
+        Binding("slash", "select_breadcrumb", "Sottocartelle", show=True),
+        Binding("m", "focus_current_folder", "Cartelle", show=True),
+        Binding("p", "focus_parent_folder", "Parent", show=True),
+        Binding("c", "disconnect_device", "Disconnetti", show=True),
+        Binding("C", "manage_devices", "Dispositivi", show=True),
+        Binding("ctrl+c", "manage_devices", "Dispositivi", show=False),
+        Binding("ctrl+d", "disconnect_device", "Disconnetti", show=False),
+        Binding("v", "launch_scrcpy", "Scrcpy", show=True),
+        Binding("l", "upload_entry", "Carica", show=True),
+        Binding("u", "upload_entry", "Carica", show=False),
+        Binding("f", "create_folder", "Nuova cartella", show=True),
+        Binding("r", "delete_entry", "Elimina", show=True),
+        Binding("x", "delete_entry", "Elimina", show=False),
+        Binding("R", "refresh_view", "Ricarica", show=True),
+        Binding("h", "go_main_menu", "Menu princ.", show=True),
         Binding("w", "adjust_column_widths", "Colonne", show=True),
-        Binding("m", "launch_scrcpy", "Scrcpy", show=True),
         Binding("g", "quick_jump", "Memorie", show=True),
         Binding("s", "cycle_sort", "Ordina", show=True),
         Binding("S", "toggle_sort_order", "Inverti ord.", show=False),
         Binding("f2", "toggle_language", "IT/EN", show=False),
-        Binding("ctrl+d", "disconnect_device", "Disconnetti", show=True),
-        Binding("r", "refresh_view", "Ricarica", show=True),
         Binding("space", "toggle_selection", "Seleziona", show=True),
         Binding("a", "toggle_select_all", "Tutti", show=True),
         Binding("escape", "clear_selection", "Annulla selez.", show=False),
         Binding("d", "download_entry", "Scarica", show=True),
-        Binding("u", "upload_entry", "Carica", show=True),
-        Binding("f", "create_folder", "Nuova cartella", show=True),
         Binding("n", "rename_entry", "Rinomina", show=True),
-        Binding("x", "delete_entry", "Elimina", show=True),
         Binding("enter", "enter_selected", "Apri", show=True),
-        Binding("l", "enter_selected", "Apri", show=False),
         Binding("backspace", "go_parent", "Genitore", show=True),
-        Binding("h", "go_parent", "Genitore", show=False),
         Binding("j", "cursor_down", "Giù", show=False),
         Binding("k", "cursor_up", "Su", show=False),
     ]
@@ -622,11 +628,39 @@ class AndroidTuiApp(App):
         parent = self.current_path.rsplit("/", 1)[0] or "/"
         self.load_directory(parent)
 
+    def action_focus_current_folder(self) -> None:
+        """Focuses the current directory table (middle pane) for browsing files and folders."""
+        browser = self.query(BrowserView)
+        if browser:
+            table = browser.first().query_one("#current-table", FileTable)
+            table.focus()
+
+    def action_focus_parent_folder(self) -> None:
+        """Focuses the parent directory list (left pane) for navigating parent / sibling folders."""
+        browser = self.query(BrowserView)
+        if browser:
+            parent_list = browser.first().query_one("#parent-list", ListView)
+            parent_list.focus()
+            if parent_list.children and parent_list.index is None:
+                parent_list.index = 0
+
     def action_cursor_down(self) -> None:
+        browser = self.query(BrowserView)
+        if browser:
+            p_list = browser.first().query("#parent-list")
+            if p_list and p_list.first().has_focus:
+                p_list.first().action_cursor_down()
+                return
         table = self.query_one(DataTable)
         table.action_cursor_down()
 
     def action_cursor_up(self) -> None:
+        browser = self.query(BrowserView)
+        if browser:
+            p_list = browser.first().query("#parent-list")
+            if p_list and p_list.first().has_focus:
+                p_list.first().action_cursor_up()
+                return
         table = self.query_one(DataTable)
         table.action_cursor_up()
 
@@ -1067,20 +1101,29 @@ class AndroidTuiApp(App):
         self.selected_entries.clear()
         self.load_directory(self.current_path)
 
-    def action_disconnect_device(self) -> None:
+    def action_disconnect_device(self, confirm: bool = True) -> None:
         """Disconnects current device and returns to the DisconnectedDashboard."""
         active = self.adb.active_device
-        if active:
+        if not active:
+            self.sync_views()
+            return
+
+        def _do_disconnect(confirmed: bool) -> None:
+            if not confirmed:
+                return
             dev_name = active.display_name
             self.adb.set_active_device(None)
             self.sync_views()
             self.query_one(FooterBar).show_toast(t("disconnected_toast", name=dev_name))
+
+        if confirm:
+            self.push_screen(DisconnectConfirmModal(device_name=active.display_name), _do_disconnect)
         else:
-            self.sync_views()
+            _do_disconnect(True)
 
     def action_go_main_menu(self) -> None:
-        """Navigates to the main menu / dashboard upon clicking AndroidTUI."""
-        self.action_disconnect_device()
+        """Navigates to the main menu / dashboard upon clicking AndroidTUI or pressing 'h'."""
+        self.action_disconnect_device(confirm=False)
 
     def action_quick_jump(self) -> None:
         """Opens quick jump modal for known storage locations (internal, microSD, Downloads, DCIM, Root)."""
