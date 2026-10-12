@@ -6,7 +6,7 @@ and interactive modals.
 import os
 import subprocess
 from pathlib import Path
-from typing import Optional, List, Any
+from typing import Optional, List, Any, Tuple
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -29,6 +29,8 @@ from .views.modals import (
     DownloadModal,
     BatchDownloadModal,
     BatchDeleteModal,
+    DownloadDestinationModal,
+    ColumnWidthsModal,
     UploadModal,
     CreateFolderModal,
     RenameModal,
@@ -53,6 +55,7 @@ class AndroidTuiApp(App):
         Binding("question_mark", "show_help", "Aiuto", show=True),
         Binding("c", "manage_devices", "Dispositivi", show=True),
         Binding("p", "select_breadcrumb", "Percorso", show=True),
+        Binding("w", "adjust_column_widths", "Colonne", show=True),
         Binding("m", "launch_scrcpy", "Scrcpy", show=True),
         Binding("g", "quick_jump", "Memorie", show=True),
         Binding("s", "cycle_sort", "Ordina", show=True),
@@ -86,10 +89,47 @@ class AndroidTuiApp(App):
         self.parent_entries: List[FileEntry] = []
         self.selected_paths: set = set()
         self.selected_entries: dict = {}
-        self.sort_by: str = "name"
-        self.sort_reverse: bool = False
+        self.sort_by, self.sort_reverse, self.saved_col_widths = self._load_browser_settings()
         self._stability_timer = None
 
+    def _load_browser_settings(self) -> Tuple[str, bool, dict]:
+        settings_file = Path.home() / ".android_tui_settings.json"
+        sort_by = "name"
+        sort_reverse = False
+        widths = {"sel": 5, "name": 34, "size": 12, "type": 12, "modified": 18, "perms": 12}
+        if settings_file.exists():
+            try:
+                import json
+                with open(settings_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    sort_by = data.get("sort_by", "name")
+                    sort_reverse = data.get("sort_reverse", False)
+                    if "col_widths" in data and isinstance(data["col_widths"], dict):
+                        widths.update(data["col_widths"])
+            except Exception:
+                pass
+        return sort_by, sort_reverse, widths
+
+    def _save_browser_settings(self) -> None:
+        settings_file = Path.home() / ".android_tui_settings.json"
+        try:
+            import json
+            data = {}
+            if settings_file.exists():
+                try:
+                    with open(settings_file, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                except Exception:
+                    data = {}
+            data["sort_by"] = self.sort_by
+            data["sort_reverse"] = self.sort_reverse
+            browser = self.query(BrowserView)
+            if browser:
+                data["col_widths"] = browser.first().col_widths
+            with open(settings_file, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2)
+        except Exception:
+            pass
 
     def compose(self) -> ComposeResult:
         yield HeaderBar()
@@ -98,8 +138,10 @@ class AndroidTuiApp(App):
         yield FooterBar()
 
     def on_mount(self) -> None:
-        # Initially hide browser view until a connected device is active
-        self.query_one(BrowserView).display = False
+        browser = self.query_one(BrowserView)
+        browser.col_widths.update(self.saved_col_widths)
+        browser.update_columns(self.sort_by, self.sort_reverse)
+        browser.display = False
         self.query_one(DisconnectedDashboard).display = True
         self._stability_timer = self.set_interval(4.0, self.check_connection_stability)
         self.scan_and_auto_connect()
@@ -258,7 +300,7 @@ class AndroidTuiApp(App):
         self.action_toggle_select_all()
 
     def on_data_table_header_selected(self, event: DataTable.HeaderSelected) -> None:
-        """Mouse click on column headers to sort by Name, Size, or Type!"""
+        """Mouse click on column headers to sort by Name, Size, Type, Date, Perms!"""
         col = event.column_index
         if col == 0:
             self.action_toggle_select_all()
@@ -268,6 +310,10 @@ class AndroidTuiApp(App):
             self.sort_directory("size")
         elif col == 3:
             self.sort_directory("type")
+        elif col == 4:
+            self.sort_directory("modified")
+        elif col == 5:
+            self.sort_directory("perms")
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         idx = event.cursor_row
@@ -291,7 +337,7 @@ class AndroidTuiApp(App):
                     self.fetch_preview(entry)
 
     # -------------------------------------------------------------
-    # Sorting logic (Name, Size, Type)
+    # Sorting logic & Column Sizing
     # -------------------------------------------------------------
     def _sort_entries(self, entries: List[FileEntry], sort_by: str, reverse: bool) -> List[FileEntry]:
         dirs = [e for e in entries if e.is_dir]
@@ -301,11 +347,17 @@ class AndroidTuiApp(App):
             dirs.sort(key=lambda x: x.name.lower(), reverse=reverse)
             files.sort(key=lambda x: x.name.lower(), reverse=reverse)
         elif sort_by == "size":
-            dirs.sort(key=lambda x: x.name.lower())
+            dirs.sort(key=lambda x: x.name.lower(), reverse=reverse)
             files.sort(key=lambda x: x.size, reverse=reverse)
         elif sort_by == "type":
-            dirs.sort(key=lambda x: x.name.lower())
+            dirs.sort(key=lambda x: x.name.lower(), reverse=reverse)
             files.sort(key=lambda x: (x.category.value, x.extension.lower(), x.name.lower()), reverse=reverse)
+        elif sort_by in ("modified", "date"):
+            dirs.sort(key=lambda x: x.date_str or "", reverse=reverse)
+            files.sort(key=lambda x: x.date_str or "", reverse=reverse)
+        elif sort_by in ("perms", "permissions"):
+            dirs.sort(key=lambda x: x.permissions or "", reverse=reverse)
+            files.sort(key=lambda x: x.permissions or "", reverse=reverse)
 
         return dirs + files
 
@@ -317,29 +369,43 @@ class AndroidTuiApp(App):
             self.sort_by = column
             self.sort_reverse = False
 
+        self._save_browser_settings()
         self.active_entries = self._sort_entries(self.active_entries, self.sort_by, self.sort_reverse)
         browser = self.query_one(BrowserView)
         browser.update_columns(self.sort_by, self.sort_reverse)
 
-        col_name = t(f"col_{self.sort_by}") if f"col_{self.sort_by}" in ("col_name", "col_size", "col_type") else self.sort_by
+        col_name = t(f"col_{self.sort_by}") if f"col_{self.sort_by}" in ("col_name", "col_size", "col_type", "col_modified", "col_perms") else self.sort_by
         order_name = t("order_desc") if self.sort_reverse else t("order_asc")
         self.query_one(FooterBar).show_toast(t("sorted_by", col=col_name, order=order_name))
 
     def action_cycle_sort(self) -> None:
-        """Keyboard shortcut (s): cycles sort mode between Name -> Size -> Type."""
-        cycle = {"name": "size", "size": "type", "type": "name"}
+        """Keyboard shortcut (s): cycles sort mode between Name -> Size -> Type -> Modified -> Perms."""
+        cycle = {"name": "size", "size": "type", "type": "modified", "modified": "perms", "perms": "name"}
         next_sort = cycle.get(self.sort_by, "name")
         self.sort_directory(next_sort)
 
     def action_toggle_sort_order(self) -> None:
         """Keyboard shortcut (S): toggles ascending / descending sort order."""
         self.sort_reverse = not self.sort_reverse
+        self._save_browser_settings()
         self.active_entries = self._sort_entries(self.active_entries, self.sort_by, self.sort_reverse)
         browser = self.query_one(BrowserView)
         browser.update_columns(self.sort_by, self.sort_reverse)
         order_name = t("order_desc") if self.sort_reverse else t("order_asc")
         col_name = t(f"col_{self.sort_by}")
         self.query_one(FooterBar).show_toast(t("sorted_by", col=col_name, order=order_name))
+
+    def action_adjust_column_widths(self) -> None:
+        """Opens Column Widths customization modal."""
+        browser = self.query_one(BrowserView)
+
+        def on_widths_result(widths: Optional[dict]) -> None:
+            if widths:
+                browser.update_columns(self.sort_by, self.sort_reverse, col_widths=widths)
+                self._save_browser_settings()
+                self.query_one(FooterBar).show_toast("Larghezze colonne aggiornate.")
+
+        self.push_screen(ColumnWidthsModal(current_widths=browser.col_widths), on_widths_result)
 
     # -------------------------------------------------------------
     # Scrcpy Screen Mirroring Integration
@@ -509,39 +575,70 @@ class AndroidTuiApp(App):
         return None
 
     def action_download_entry(self) -> None:
-        """Pulls selected file(s) from Phone to PC via ADB pull (single or batch)"""
+        """Downloads selected file(s) to PC or directly transfers them to a second connected Android device."""
         if self.selected_paths:
-            # Batch mode
-            entries_to_download = list(self.selected_entries.values())
-            def handle_batch(pc_dest_dir: Optional[str]) -> None:
-                if not pc_dest_dir:
-                    return
-                self._do_batch_pull_worker(entries_to_download, pc_dest_dir)
-
-            self.push_screen(
-                BatchDownloadModal(entries=entries_to_download, default_pc_dir=self.default_pc_download_dir),
-                handle_batch,
-            )
-            return
-
-        entry = self.get_selected_entry()
-        if not entry:
-            self.query_one(FooterBar).show_toast("Nessun file selezionato per il download", is_error=True)
-            return
-
-        def handle_download(pc_dest_dir: Optional[str]) -> None:
-            if not pc_dest_dir:
+            entries = list(self.selected_entries.values())
+        else:
+            entry = self.get_selected_entry()
+            if not entry:
+                self.query_one(FooterBar).show_toast("Nessun file selezionato per il download", is_error=True)
                 return
-            self._do_pull_worker(entry.path, pc_dest_dir)
+            entries = [entry]
 
+        def handle_transfer(result: Optional[Tuple[str, str, Optional[AdbDevice]]]) -> None:
+            if not result:
+                return
+            mode, dest_path, target_device = result
+            if mode == "pc":
+                if len(entries) > 1:
+                    self._do_batch_pull_worker(entries, dest_path)
+                else:
+                    self._do_pull_worker(entries[0].path, dest_path)
+            elif mode == "device":
+                if target_device:
+                    self._do_device_to_device_worker(entries, target_device, dest_path)
+
+        all_devices = self.adb.get_devices()
         self.push_screen(
-            DownloadModal(
-                remote_name=entry.name,
-                remote_path=entry.path,
+            DownloadDestinationModal(
+                entries=entries,
                 default_pc_dir=self.default_pc_download_dir,
+                available_devices=all_devices,
+                active_device=self.adb.active_device,
             ),
-            handle_download,
+            handle_transfer,
         )
+
+    @work(thread=True)
+    def _do_device_to_device_worker(self, entries: List[FileEntry], target_device: AdbDevice, remote_dest_dir: str) -> None:
+        import tempfile
+        total = len(entries)
+        success_count = 0
+        temp_dir = tempfile.gettempdir()
+        source_serial = self.adb.active_device.serial if self.adb.active_device else None
+
+        for idx, entry in enumerate(entries, 1):
+            self.app.call_from_thread(
+                self.query_one(FooterBar).show_toast,
+                t("transfer_d2d_progress", idx=idx, total=total, name=entry.name, target=target_device.display_name),
+            )
+            local_tmp = os.path.join(temp_dir, f"atui_d2d_{os.path.basename(entry.path)}")
+            pull_ok, _ = self.adb.pull_file(entry.path, local_tmp, target_serial=source_serial)
+            if pull_ok:
+                push_ok, _ = self.adb.push_file(local_tmp, remote_dest_dir, target_serial=target_device.serial)
+                if push_ok:
+                    success_count += 1
+                try:
+                    if os.path.exists(local_tmp):
+                        os.remove(local_tmp)
+                except Exception:
+                    pass
+
+        msg = t("transfer_d2d_complete", count=success_count, total=total, target=target_device.display_name)
+        self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, success_count == 0)
+        self.selected_paths.clear()
+        self.selected_entries.clear()
+        self.app.call_from_thread(self._refresh_selection_state)
 
     @work(thread=True)
     def _do_pull_worker(self, remote_path: str, pc_dest_dir: str) -> None:
@@ -686,6 +783,10 @@ class AndroidTuiApp(App):
             self.query_one(FooterBar).show_toast(t("disconnected_toast", name=dev_name))
         else:
             self.sync_views()
+
+    def action_go_main_menu(self) -> None:
+        """Navigates to the main menu / dashboard upon clicking AndroidTUI."""
+        self.action_disconnect_device()
 
     def action_quick_jump(self) -> None:
         """Opens quick jump modal for known storage locations (internal, microSD, Downloads, DCIM, Root)."""
@@ -835,28 +936,6 @@ class AndroidTuiApp(App):
 
         elif btn_id == "btn-tcpip":
             self._do_tcpip_worker()
-
-        elif btn_id == "btn-start-demo":
-            self.adb.set_active_device(
-                AdbDevice(
-                    serial="demo-pixel-8",
-                    state=DeviceState.DEVICE,
-                    connection_type=ConnectionType.DEMO,
-                    model="Pixel 8 Pro (Demo Mode)",
-                    brand="Google",
-                    android_version="14",
-                    sdk_version="34",
-                    battery_level=88,
-                    battery_status="In carica",
-                    storage_free="64.5 GB",
-                    storage_total="128 GB",
-                    sdcard_path="/sdcard",
-                    ext_sd_path="/storage/1F2A-3B4C",
-                    ext_sd_free="112 GB",
-                    ext_sd_total="128 GB",
-                )
-            )
-            self._on_device_connected(self.adb.active_device)
 
 
     @work(thread=True)

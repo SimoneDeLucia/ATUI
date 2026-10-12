@@ -5,7 +5,8 @@ Download/Upload transfers, File management (rename/delete/new folder),
 Path Breadcrumbs navigation, Settings and Keyboard shortcuts Help.
 """
 import os
-from typing import List, Optional, Tuple, Any
+from pathlib import Path
+from typing import List, Optional, Tuple, Any, Dict
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual.screen import ModalScreen
@@ -251,6 +252,132 @@ class BatchDownloadModal(ModalScreen[Optional[str]]):
         if event.button.id == "btn-submit":
             val = self.query_one("#input-pc-dest", Input).value.strip()
             self.dismiss(val if val else None)
+        else:
+            self.dismiss(None)
+
+
+# -----------------------------------------------------------------
+# 4c. Unified Download & Device-to-Device Transfer Modal
+# -----------------------------------------------------------------
+class DownloadDestinationModal(ModalScreen[Optional[Tuple[str, str, Optional[AdbDevice]]]]):
+    """
+    Modal allowing the user to download files to the local PC or directly transfer
+    them between two connected Android devices with interactive folder navigation.
+    """
+
+    def __init__(
+        self,
+        entries: List[FileEntry],
+        default_pc_dir: str,
+        available_devices: List[AdbDevice],
+        active_device: Optional[AdbDevice] = None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.entries = entries
+        self.default_pc_dir = default_pc_dir
+        self.other_devices = [
+            d for d in available_devices
+            if active_device and d.serial != active_device.serial and d.state == DeviceState.DEVICE
+        ]
+        self.selected_target_device: Optional[AdbDevice] = self.other_devices[0] if self.other_devices else None
+        self.mode: str = "pc"
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-dialog"):
+            yield Static(t("transfer_title"), classes="modal-title")
+            summary_txt = f"{len(self.entries)} elementi" if len(self.entries) > 1 else (self.entries[0].name if self.entries else "")
+            yield Static(f"[dim]Oggetto del trasferimento: [bold #7dcfff]{summary_txt}[/][/]", classes="modal-subtitle")
+
+            # Selection buttons between PC and Android
+            with Horizontal(classes="button-bar", id="d2d-choice-bar"):
+                yield Button(t("transfer_mode_pc"), id="btn-choice-pc", variant="primary")
+                has_devs = bool(self.other_devices)
+                dev_btn_lbl = t("transfer_mode_device")
+                if not has_devs:
+                    dev_btn_lbl += " (Nessun 2° dispositivo)"
+                yield Button(dev_btn_lbl, id="btn-choice-device", disabled=not has_devs)
+
+            # Section PC Destination
+            with Vertical(id="section-pc-dest"):
+                yield Static(t("transfer_pc_dir"), classes="meta-key")
+                yield Input(value=self.default_pc_dir, id="input-pc-dest")
+                with Horizontal(classes="quick-folders-bar"):
+                    yield Button("📥 Downloads", id="btn-q-pc-dl")
+                    yield Button("🖥️ Desktop", id="btn-q-pc-dt")
+                    yield Button("📁 Documenti", id="btn-q-pc-doc")
+                    yield Button("🏠 Home", id="btn-q-pc-home")
+
+            # Section Device Destination
+            with Vertical(id="section-device-dest"):
+                if self.other_devices:
+                    yield Static(t("transfer_select_device"), classes="meta-key")
+                    with ListView(id="target-device-list"):
+                        for idx, d in enumerate(self.other_devices):
+                            icon = "🔌" if d.connection_type == ConnectionType.USB else "📶"
+                            t_lbl = Text()
+                            t_lbl.append(f"{icon} {d.display_name} ", style="bold #73daca")
+                            t_lbl.append(f"({d.serial})", style="dim")
+                            yield ListItem(Label(t_lbl), id=f"target-dev-{idx}")
+                    yield Static(t("transfer_remote_dir"), classes="meta-key")
+                    yield Input(value="/sdcard/Download", id="input-remote-dest")
+                    with Horizontal(classes="quick-folders-bar"):
+                        yield Button("📥 /sdcard/Download", id="btn-q-dev-dl")
+                        yield Button("📱 /sdcard", id="btn-q-dev-sd")
+                        yield Button("📷 /sdcard/DCIM", id="btn-q-dev-dcim")
+                else:
+                    yield Static(f"[bold #f7768e]{t('transfer_no_second_device')}[/]", classes="modal-subtitle")
+
+            with Horizontal(classes="button-bar"):
+                yield Button(t("transfer_btn_start"), id="btn-submit", variant="primary")
+                yield Button(t("btn_cancel"), id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#section-device-dest").display = False
+        self.query_one("#section-pc-dest").display = True
+
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        idx = event.list_view.index
+        if idx is not None and 0 <= idx < len(self.other_devices):
+            self.selected_target_device = self.other_devices[idx]
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        btn_id = event.button.id
+        if btn_id == "btn-choice-pc":
+            self.mode = "pc"
+            self.query_one("#btn-choice-pc", Button).variant = "primary"
+            self.query_one("#btn-choice-device", Button).variant = "default"
+            self.query_one("#section-pc-dest").display = True
+            self.query_one("#section-device-dest").display = False
+        elif btn_id == "btn-choice-device":
+            if self.other_devices:
+                self.mode = "device"
+                self.query_one("#btn-choice-device", Button).variant = "primary"
+                self.query_one("#btn-choice-pc", Button).variant = "default"
+                self.query_one("#section-pc-dest").display = False
+                self.query_one("#section-device-dest").display = True
+        elif btn_id == "btn-q-pc-dl":
+            self.query_one("#input-pc-dest", Input).value = str(Path.home() / "Downloads")
+        elif btn_id == "btn-q-pc-dt":
+            self.query_one("#input-pc-dest", Input).value = str(Path.home() / "Desktop")
+        elif btn_id == "btn-q-pc-doc":
+            self.query_one("#input-pc-dest", Input).value = str(Path.home() / "Documents")
+        elif btn_id == "btn-q-pc-home":
+            self.query_one("#input-pc-dest", Input).value = str(Path.home())
+        elif btn_id == "btn-q-dev-dl":
+            self.query_one("#input-remote-dest", Input).value = "/sdcard/Download"
+        elif btn_id == "btn-q-dev-sd":
+            self.query_one("#input-remote-dest", Input).value = "/sdcard"
+        elif btn_id == "btn-q-dev-dcim":
+            self.query_one("#input-remote-dest", Input).value = "/sdcard/DCIM"
+        elif btn_id == "btn-submit":
+            if self.mode == "pc":
+                pc_dir = self.query_one("#input-pc-dest", Input).value.strip() or self.default_pc_dir
+                self.dismiss(("pc", pc_dir, None))
+            else:
+                remote_dir = self.query_one("#input-remote-dest", Input).value.strip() or "/sdcard/Download"
+                target = self.selected_target_device or (self.other_devices[0] if self.other_devices else None)
+                self.dismiss(("device", remote_dir, target))
         else:
             self.dismiss(None)
 
@@ -578,3 +705,75 @@ class ScrcpyModal(ModalScreen[None]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.dismiss(None)
+
+
+# -----------------------------------------------------------------
+# 13. Column Widths Adjustment Modal
+# -----------------------------------------------------------------
+class ColumnWidthsModal(ModalScreen[Optional[dict]]):
+    """
+    Modal allowing the user to customize column widths for Name, Size, Type,
+    Modified date, and Permissions, or choose between Compact, Standard, and Expanded presets.
+    """
+
+    def __init__(self, current_widths: dict, **kwargs):
+        super().__init__(**kwargs)
+        self.widths = dict(current_widths)
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-dialog"):
+            yield Static(t("col_widths_title"), classes="modal-title")
+            yield Static(t("col_widths_desc"), classes="modal-subtitle")
+
+            # Presets
+            with Horizontal(classes="button-bar", id="preset-bar"):
+                yield Button(f"📱 {t('preset_compact')}", id="btn-preset-compact")
+                yield Button(f"⚖️ {t('preset_standard')}", id="btn-preset-standard", variant="primary")
+                yield Button(f"🖥️ {t('preset_expanded')}", id="btn-preset-expanded")
+
+            col_specs = [
+                ("name", t("col_w_name")),
+                ("size", t("col_w_size")),
+                ("type", t("col_w_type")),
+                ("modified", t("col_w_mod")),
+                ("perms", t("col_w_perms")),
+            ]
+            for col_id, col_name in col_specs:
+                with Horizontal(classes="width-adjust-row"):
+                    yield Static(f"{col_name}:", classes="col-adjust-label")
+                    yield Button("➖", id=f"btn-dec-{col_id}", classes="btn-adjust")
+                    yield Static(f"{self.widths.get(col_id, 20)}", id=f"val-{col_id}", classes="col-adjust-val")
+                    yield Button("➕", id=f"btn-inc-{col_id}", classes="btn-adjust")
+
+            with Horizontal(classes="button-bar"):
+                yield Button(t("btn_apply"), id="btn-apply", variant="primary")
+                yield Button(t("btn_cancel"), id="btn-cancel")
+
+    def _update_display(self) -> None:
+        for col_id in ["name", "size", "type", "modified", "perms"]:
+            val_widget = self.query_one(f"#val-{col_id}", Static)
+            val_widget.update(str(self.widths.get(col_id, 20)))
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        btn_id = event.button.id
+        if btn_id == "btn-preset-compact":
+            self.widths = {"sel": 5, "name": 24, "size": 10, "type": 10, "modified": 16, "perms": 10}
+            self._update_display()
+        elif btn_id == "btn-preset-standard":
+            self.widths = {"sel": 5, "name": 34, "size": 12, "type": 12, "modified": 18, "perms": 12}
+            self._update_display()
+        elif btn_id == "btn-preset-expanded":
+            self.widths = {"sel": 5, "name": 48, "size": 14, "type": 14, "modified": 22, "perms": 14}
+            self._update_display()
+        elif btn_id and btn_id.startswith("btn-dec-"):
+            col = btn_id.replace("btn-dec-", "")
+            self.widths[col] = max(6, self.widths.get(col, 20) - 2)
+            self._update_display()
+        elif btn_id and btn_id.startswith("btn-inc-"):
+            col = btn_id.replace("btn-inc-", "")
+            self.widths[col] = min(80, self.widths.get(col, 20) + 2)
+            self._update_display()
+        elif btn_id == "btn-apply":
+            self.dismiss(self.widths)
+        else:
+            self.dismiss(None)

@@ -146,7 +146,46 @@ async def run_compatibility_suite():
         app.screen.dismiss(None)
         await pilot.pause()
 
-        print("\n[SUCCESS] ALL INTEGRATION TESTS (INCLUDING ALL 5 REQUIREMENTS) PASSED 100%!")
+        # 9. Test Column Widths modal via keybinding 'w'
+        print("[9] Testing Column Widths modal via keybinding 'w'...")
+        from android_tui.views.modals import ColumnWidthsModal, DownloadDestinationModal
+        await pilot.press("w")
+        await pilot.pause()
+        assert isinstance(app.screen, ColumnWidthsModal)
+        print("    Live ColumnWidthsModal opened via 'w'!")
+        app.screen.dismiss(None)
+        await pilot.pause()
+
+        # 10. Test DownloadDestinationModal with Device-to-Device transfer options
+        print("[10] Testing DownloadDestinationModal & Device-to-Device...")
+        d2d_modal = DownloadDestinationModal(
+            entries=[entry_prod],
+            default_pc_dir="/tmp",
+            available_devices=[dev, AdbDevice(serial="second-phone:5555", model="Nothing Phone 2")],
+            active_device=dev,
+        )
+        assert len(d2d_modal.other_devices) == 1
+        assert d2d_modal.other_devices[0].serial == "second-phone:5555"
+        print("    Device-to-device target device detected properly!")
+
+        # 11. Test Header Logo Navigation to Main Menu
+        print("[11] Testing Header Logo Navigation to Main Menu...")
+        from android_tui.views.disconnected import DisconnectedDashboard
+        app.action_go_main_menu()
+        await pilot.pause()
+        assert app.adb.active_device is None
+        assert app.query_one(DisconnectedDashboard).display is True
+        print("    Navigating to main menu on logo click verified!")
+
+        # 12. Test Modular i18n from locales/*.json
+        print("[12] Testing Modular i18n from JSON files...")
+        from android_tui.i18n import get_available_languages
+        langs = get_available_languages()
+        assert "it" in langs and "en" in langs
+        assert "\\[d\\]" in t("meta_act_dl")
+        print("    Modular JSON translations & escaped hotkeys verified!")
+
+        print("\n[SUCCESS] ALL INTEGRATION TESTS (ALL 8 REQUIREMENTS) PASSED 100%!")
 
 
 if __name__ == "__main__":

@@ -53,9 +53,9 @@ if [ -f "$UDEV_SOURCE" ]; then
     fi
 fi
 
-# 3. Controllo ADB e Scrcpy
+# 3. Controllo ADB e Scrcpy (Opzionale)
 echo ""
-echo "[*] Verifica strumenti ADB e Scrcpy..."
+echo "[*] Verifica strumenti ADB..."
 if ! command -v adb >/dev/null 2>&1; then
     echo "[INFO] ADB non trovato nel PATH. Per installarlo su Debian/Ubuntu: sudo apt install adb"
     echo "       Su Fedora: sudo dnf install android-tools"
@@ -64,10 +64,32 @@ else
     echo "[OK] ADB disponibile: $(which adb)"
 fi
 
+echo ""
+echo "[*] Opzione installazione Scrcpy (Mirroring Schermo):"
+INSTALL_SCRCPY="${INSTALL_SCRCPY:-}"
+if [ "$1" == "--with-scrcpy" ]; then
+    INSTALL_SCRCPY="yes"
+elif [ "$1" == "--without-scrcpy" ] || [ "$1" == "--no-scrcpy" ]; then
+    INSTALL_SCRCPY="no"
+fi
+
 if ! command -v scrcpy >/dev/null 2>&1; then
-    echo "[INFO] Scrcpy non trovato nel PATH. Per mirroring dello schermo: sudo apt install scrcpy"
+    echo "[INFO] Scrcpy non è attualmente installato."
+    echo "       Se desideri installarlo separatamente, consulta il sito ufficiale:"
+    echo "       -> https://scrcpy.org/"
+    echo "       Oppure installalo tramite gestore pacchetti: sudo apt install scrcpy"
+    if [ "$INSTALL_SCRCPY" == "yes" ]; then
+        echo "[*] Tentativo di installazione automatica Scrcpy..."
+        if command -v apt >/dev/null 2>&1; then
+            sudo apt update && sudo apt install -y scrcpy || true
+        elif command -v dnf >/dev/null 2>&1; then
+            sudo dnf install -y scrcpy || true
+        elif command -v pacman >/dev/null 2>&1; then
+            sudo pacman -S --noconfirm scrcpy || true
+        fi
+    fi
 else
-    echo "[OK] Scrcpy disponibile: $(which scrcpy)"
+    echo "[OK] Scrcpy rilevato: $(which scrcpy)"
 fi
 
 # 4. Installazione dipendenze Python

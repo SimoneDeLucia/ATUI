@@ -31,3 +31,38 @@ ModalScreen {
     margin-top: 1;
     height: 3;
 }
+
+.quick-folders-bar {
+    layout: horizontal;
+    height: 3;
+    margin-top: 1;
+    margin-bottom: 1;
+}
+
+.quick-folders-bar Button {
+    margin-right: 1;
+    min-width: 10;
+}
+
+.width-adjust-row {
+    layout: horizontal;
+    height: 3;
+    align: left middle;
+    margin-bottom: 0;
+}
+
+.col-adjust-label {
+    width: 20;
+    color: #c0caf5;
+}
+
+.col-adjust-val {
+    width: 8;
+    text-align: center;
+    color: #73daca;
+    text-style: bold;
+}
+
+.btn-adjust {
+    min-width: 4;
+}

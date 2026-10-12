@@ -61,8 +61,9 @@ def build_msi_package():
         "Property",
         [
             ("ALLUSERS", "1"),
-            ("ARPHELPLINK", "https://github.com/genymobile/scrcpy"),
+            ("ARPHELPLINK", "https://scrcpy.org/"),
             ("ARPURLINFOABOUT", "https://github.com/AndroidTUI"),
+            ("SCRCPY_OFFICIAL_URL", "https://scrcpy.org/"),
             ("ARPNOMODIFY", "1"),
             ("UpgradeCode", UPGRADE_CODE),
             ("INSTALLDIR_DESCR", "Directory di installazione personalizzabile"),

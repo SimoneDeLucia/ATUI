@@ -7,9 +7,9 @@
 }
 
 #disconnected-hero {
-    width: 90;
-    max-width: 96%;
-    border: round #f7768e;
+    width: 104;
+    max-width: 98%;
+    border: round #7dcfff;
     background: #1f2335;
     padding: 1 2;
 }
@@ -18,7 +18,7 @@
     text-align: center;
     text-style: bold;
     color: #7dcfff;
-    margin-bottom: 1;
+    margin-bottom: 0;
 }
 
 #hero-subtitle {
@@ -32,6 +32,10 @@
     height: auto;
     margin-top: 1;
     margin-bottom: 1;
+}
+
+#row-tools {
+    margin-top: 0;
 }
 
 .option-card {
@@ -57,6 +61,7 @@
 .card-desc {
     color: #9aa5ce;
     margin-bottom: 1;
+    height: auto;
 }
 
 .btn-remembered {
@@ -72,4 +77,17 @@
     background: #73daca;
     color: #1a1b26;
     border: round #73daca;
+}
+
+.card-button-bar {
+    layout: horizontal;
+    align: center middle;
+    height: 3;
+    margin-top: 1;
+}
+
+.card-button-bar Button {
+    margin: 0 1;
+    min-width: 14;
+    width: auto;
 }

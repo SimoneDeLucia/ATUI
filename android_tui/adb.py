@@ -431,35 +431,20 @@ class AdbManager:
             return out, is_truncated
         return "File non visualizzabile come testo.", False
 
-    def pull_file(self, remote_path: str, local_dest: str) -> Tuple[bool, str]:
+    def pull_file(self, remote_path: str, local_dest: str, target_serial: Optional[str] = None) -> Tuple[bool, str]:
         """Pulls file or folder from Phone to PC using 'adb pull'"""
-        if self.demo_mode:
-            # Simulate local save
-            os.makedirs(local_dest, exist_ok=True)
-            target = os.path.join(local_dest, os.path.basename(remote_path))
-            with open(target, "w", encoding="utf-8") as f:
-                f.write(f"Contenuto simulato scaricato da AndroidTUI: {remote_path}\n")
-            return True, f"File simulato scaricato in: {target}"
-
         os.makedirs(local_dest, exist_ok=True)
-        code, out, err = self.run_cmd(["pull", remote_path, local_dest], timeout=120)
+        code, out, err = self.run_cmd(["pull", remote_path, local_dest], timeout=120, target_serial=target_serial)
         if code == 0:
             return True, out.strip() or f"File trasferito con successo in {local_dest}"
         return False, err.strip() or out.strip() or "Errore durante il download dal telefono."
 
-    def push_file(self, local_src: str, remote_dest_dir: str) -> Tuple[bool, str]:
+    def push_file(self, local_src: str, remote_dest_dir: str, target_serial: Optional[str] = None) -> Tuple[bool, str]:
         """Pushes file or folder from PC to Phone using 'adb push'"""
-        if self.demo_mode:
-            name = os.path.basename(local_src)
-            self._demo_fs.setdefault(remote_dest_dir, []).append(
-                FileEntry(name=name, path=f"{remote_dest_dir}/{name}", is_dir=os.path.isdir(local_src), size=1024)
-            )
-            return True, f"File {name} caricato in modalità demo!"
-
         if not os.path.exists(local_src):
             return False, f"File locale non trovato: {local_src}"
 
-        code, out, err = self.run_cmd(["push", local_src, remote_dest_dir], timeout=120)
+        code, out, err = self.run_cmd(["push", local_src, remote_dest_dir], timeout=120, target_serial=target_serial)
         if code == 0:
             return True, out.strip() or f"Caricato con successo in {remote_dest_dir}"
         return False, err.strip() or out.strip() or "Errore durante il caricamento sul telefono."

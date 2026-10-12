@@ -117,7 +117,7 @@ class HeaderBar(Static):
         elif widget and widget.id == "header-stats":
             self.app.action_quick_jump()
         elif widget and widget.id == "header-logo":
-            self.app.action_show_help()
+            self.app.action_go_main_menu()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         btn_id = event.button.id

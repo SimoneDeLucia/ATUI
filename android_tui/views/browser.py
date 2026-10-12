@@ -69,6 +69,14 @@ class BrowserView(Horizontal):
         self.selected_paths: set = set()
         self.sort_by: str = "name"
         self.sort_reverse: bool = False
+        self.col_widths: dict = {
+            "sel": 5,
+            "name": 34,
+            "size": 12,
+            "type": 12,
+            "modified": 18,
+            "perms": 12,
+        }
 
     def compose(self) -> ComposeResult:
         # Left Pane: Parent Directory
@@ -93,22 +101,32 @@ class BrowserView(Horizontal):
         name_lbl = t("col_name") + (arrow if sort_by == "name" else "")
         size_lbl = t("col_size") + (arrow if sort_by == "size" else "")
         type_lbl = t("col_type") + (arrow if sort_by == "type" else "")
-        return [t("col_sel"), name_lbl, size_lbl, type_lbl, t("col_modified"), t("col_perms")]
+        mod_lbl = t("col_modified") + (arrow if sort_by in ("modified", "date") else "")
+        perms_lbl = t("col_perms") + (arrow if sort_by in ("perms", "permissions") else "")
+        return [
+            (t("col_sel"), self.col_widths.get("sel", 5)),
+            (name_lbl, self.col_widths.get("name", 34)),
+            (size_lbl, self.col_widths.get("size", 12)),
+            (type_lbl, self.col_widths.get("type", 12)),
+            (mod_lbl, self.col_widths.get("modified", 18)),
+            (perms_lbl, self.col_widths.get("perms", 12)),
+        ]
 
     def on_mount(self) -> None:
         table = self.query_one("#current-table", FileTable)
-        cols = self._get_column_labels(self.sort_by, self.sort_reverse)
-        table.add_columns(*cols)
+        for label, width in self._get_column_labels(self.sort_by, self.sort_reverse):
+            table.add_column(label, width=width)
 
-    def update_columns(self, sort_by: str = "name", sort_reverse: bool = False) -> None:
-        """Updates column headers with sort arrow indicators."""
+    def update_columns(self, sort_by: str = "name", sort_reverse: bool = False, col_widths: Optional[dict] = None) -> None:
+        """Updates column headers with sort arrow indicators and explicit column widths."""
         self.sort_by = sort_by
         self.sort_reverse = sort_reverse
+        if col_widths:
+            self.col_widths.update(col_widths)
         table = self.query_one("#current-table", FileTable)
-        saved_row = table.cursor_row
         table.clear(columns=True)
-        cols = self._get_column_labels(sort_by, sort_reverse)
-        table.add_columns(*cols)
+        for label, width in self._get_column_labels(sort_by, sort_reverse):
+            table.add_column(label, width=width)
         self.update_browser(
             self.current_path,
             self.current_entries,
@@ -325,9 +343,13 @@ class BrowserView(Horizontal):
                 markup.append(f"[bold #73daca]{t('meta_press_d_dl')}[/]")
 
         markup.append("\n" + "─" * 28 + "\n")
-        markup.append(f"[bold #7dcfff]{t('meta_quick_actions')}[/\n]")
+        markup.append(f"[bold #7dcfff]{t('meta_quick_actions')}[/]")
+        markup.append(t("meta_act_open"))
         markup.append(t("meta_act_dl"))
+        markup.append(t("meta_act_upload"))
         markup.append(t("meta_act_select"))
+        markup.append(t("meta_act_path"))
+        markup.append(t("meta_act_sort"))
         markup.append(t("meta_act_rename"))
         markup.append(t("meta_act_delete"))
 

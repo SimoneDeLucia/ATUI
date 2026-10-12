@@ -1,0 +1,14 @@
+# Preserve LF line endings across platforms and prevent Windows CRLF conversions
+* text=auto eol=lf
+*.py text eol=lf
+*.sh text eol=lf
+*.json text eol=lf
+*.css text eol=lf
+*.md text eol=lf
+*.rules text eol=lf
+atui text eol=lf
+
+# Windows-specific batch / PowerShell files
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf

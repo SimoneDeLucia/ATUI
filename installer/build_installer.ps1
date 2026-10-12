@@ -14,7 +14,8 @@
 
 param(
     [string]$PythonExe = "",
-    [switch]$SkipDownload = $false
+    [switch]$SkipDownload = $false,
+    [switch]$IncludeScrcpy = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -94,6 +95,35 @@ New-Item -ItemType Directory -Force -Path $toolsStaging | Out-Null
 if (Test-Path $platformToolsZip) {
     Write-Host "[*] Estrazione Platform-Tools in staging..." -ForegroundColor Yellow
     Expand-Archive -Path $platformToolsZip -DestinationPath $StagingDir -Force
+}
+
+# 5b. Gestione Scrcpy (Opzionale)
+$scrcpyStaging = Join-Path $StagingDir "scrcpy"
+New-Item -ItemType Directory -Force -Path $scrcpyStaging | Out-Null
+
+if ($IncludeScrcpy) {
+    $scrcpyZip = Join-Path $DownloadsDir "scrcpy-win64.zip"
+    $scrcpyUrl = "https://github.com/Genymobile/scrcpy/releases/latest/download/scrcpy-win64-v3.1.zip"
+    if (-not (Test-Path $scrcpyZip) -and -not $SkipDownload) {
+        Write-Host "[*] Download pacchetto Scrcpy ($scrcpyUrl)..." -ForegroundColor Yellow
+        try {
+            Invoke-WebRequest -Uri $scrcpyUrl -OutFile $scrcpyZip -UseBasicParsing
+            Expand-Archive -Path $scrcpyZip -DestinationPath $scrcpyStaging -Force
+            Write-Host "[✓] Scrcpy integrato nello staging di installazione." -ForegroundColor Green
+        } catch {
+            Write-Host "[!] Impossibile scaricare Scrcpy automaticamente. Verrà escluso." -ForegroundColor Yellow
+        }
+    }
+} else {
+    Write-Host ""
+    Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
+    Write-Host "  Opzione Scrcpy (Screen Mirroring): non incluso nel bundle." -ForegroundColor Yellow
+    Write-Host "  Se desideri installarlo separatamente, consulta il sito ufficiale:" -ForegroundColor White
+    Write-Host "  -> https://scrcpy.org/" -ForegroundColor Green
+    Write-Host "  Oppure tramite winget da riga di comando:" -ForegroundColor White
+    Write-Host "     winget install Genymobile.scrcpy" -ForegroundColor Cyan
+    Write-Host "----------------------------------------------------------" -ForegroundColor Cyan
+    Write-Host ""
 }
 
 # 6. Copia file applicazione
