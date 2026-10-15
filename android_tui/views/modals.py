@@ -1321,3 +1321,60 @@ class DisconnectConfirmModal(BaseNavigableModal[bool]):
             self.dismiss(False)
 
 
+# -----------------------------------------------------------------
+# 16. LocalSend Discovery & Persistent Connection Modal
+# -----------------------------------------------------------------
+class LocalSendModal(BaseNavigableModal[Optional[Any]]):
+    """Modal to discover and establish persistent connection with Android devices via LocalSend protocol."""
+    dismiss_cancel_value = None
+
+    def __init__(self, discovery: Any, connection_manager: Any, **kwargs):
+        super().__init__(**kwargs)
+        self.discovery = discovery
+        self.connection_manager = connection_manager
+
+    def compose(self) -> ComposeResult:
+        with Vertical(classes="modal-dialog", id="localsend-modal-dialog"):
+            yield Static(t("modal_localsend_title"), classes="modal-title")
+            yield Static(t("modal_localsend_subtitle"), classes="modal-subtitle")
+
+            devices = list(self.discovery.discovered_devices.values()) if self.discovery else []
+            if devices:
+                with VerticalScroll(id="localsend-device-list"):
+                    for idx, dev in enumerate(devices):
+                        status_str = f"🟢 Connesso ({dev.latency_ms} ms)" if dev.is_persistent and dev.connection_status == "CONNECTED" else "⚪ Disponibile"
+                        icon = "📱" if dev.device_type == "mobile" else "💻"
+                        label = f"{icon} {dev.alias} ({dev.device_model}) · {dev.ip}:{dev.port} [{status_str}]"
+                        with Horizontal(classes="localsend-device-row"):
+                            yield Static(label, classes="localsend-device-info")
+                            yield Button(t("localsend_btn_connect"), id=f"btn-ls-conn-{idx}", variant="primary")
+            else:
+                yield Static(t("localsend_no_devices"), id="localsend-empty-label", classes="modal-desc")
+
+            with Horizontal(classes="button-bar"):
+                yield Button(t("localsend_btn_rescan"), id="btn-ls-rescan", variant="success")
+                yield Button(t("modal_btn_close"), id="btn-cancel")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        btn_id = event.button.id or ""
+        if btn_id.startswith("btn-ls-conn-"):
+            try:
+                idx = int(btn_id.split("-")[-1])
+                devices = list(self.discovery.discovered_devices.values()) if self.discovery else []
+                if 0 <= idx < len(devices):
+                    target_dev = devices[idx]
+                    self.connection_manager.connect(target_dev)
+                    self.dismiss(target_dev)
+                    return
+            except Exception:
+                pass
+        elif btn_id == "btn-ls-rescan":
+            if self.discovery:
+                self.discovery.send_announcement()
+            # Recompose list
+            self.recompose()
+        else:
+            self.dismiss(None)
+
+
+

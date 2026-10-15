@@ -209,3 +209,30 @@ NavigableInput.-editing {
     height: auto;
 }
 
+#localsend-modal-dialog {
+    width: 82;
+    max-width: 92%;
+    height: auto;
+}
+
+#localsend-device-list {
+    max-height: 10;
+    height: auto;
+    overflow-y: auto;
+    margin-bottom: 1;
+}
+
+.localsend-device-row {
+    layout: horizontal;
+    height: 3;
+    margin-bottom: 1;
+    align: left middle;
+}
+
+.localsend-device-info {
+    width: 1fr;
+    color: #7dcfff;
+    text-style: bold;
+}
+
+

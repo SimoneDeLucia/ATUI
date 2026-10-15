@@ -43,9 +43,11 @@ from .views.modals import (
     ScrcpyModal,
     SortModal,
     DisconnectConfirmModal,
+    LocalSendModal,
     parse_file_paths,
     pick_files_gui,
 )
+from .protocol.localsend import LocalSendDiscovery, PersistentConnectionManager
 from .i18n import t, toggle_language, get_current_language, get_language_name
 
 
@@ -102,6 +104,8 @@ class AndroidTuiApp(App):
         self.selected_entries: dict = {}
         self.sort_by, self.sort_reverse, self.saved_col_widths = self._load_browser_settings()
         self._stability_timer = None
+        self.localsend_discovery = LocalSendDiscovery()
+        self.localsend_manager = PersistentConnectionManager(self.localsend_discovery, self.adb)
 
     def _load_browser_settings(self) -> Tuple[str, bool, dict]:
         settings_file = Path.home() / ".android_tui_settings.json"
@@ -156,10 +160,32 @@ class AndroidTuiApp(App):
         self.query_one(DisconnectedDashboard).display = True
         self._stability_timer = self.set_interval(4.0, self.check_connection_stability)
         self.scan_and_auto_connect()
+        self.localsend_discovery.start()
+        self.localsend_manager.register_status_callback(self._on_localsend_status_changed)
 
     def on_unmount(self) -> None:
-        """Cleans up temporary preview and download caches from disk on exit."""
+        """Cleans up temporary preview, download caches and stops LocalSend discovery on exit."""
+        if hasattr(self, "localsend_discovery"):
+            self.localsend_discovery.stop()
+        if hasattr(self, "localsend_manager"):
+            self.localsend_manager.disconnect()
         self._cleanup_all_caches()
+
+    def _on_localsend_status_changed(self, status: str, device: Any) -> None:
+        name = getattr(device, "alias", "") or "Android"
+        ip = getattr(device, "ip", "")
+        if status == "CONNECTED":
+            self.call_from_thread(
+                self.query_one(FooterBar).show_toast,
+                t("toast_localsend_connected", name=name, ip=ip),
+            )
+            self.scan_and_auto_connect(preferred_serial=f"{ip}:5555")
+        elif status == "OFFLINE":
+            self.call_from_thread(
+                self.query_one(FooterBar).show_toast,
+                t("toast_localsend_offline", name=name),
+                True,
+            )
 
     @staticmethod
     def _cleanup_all_caches() -> None:
@@ -1290,6 +1316,9 @@ class AndroidTuiApp(App):
                     self._do_wifi_pair_worker(addr, code)
             self.push_screen(WirelessPairModal(), on_pair_data)
 
+        elif btn_id == "btn-localsend-scan":
+            self.action_localsend_discovery()
+
         # ADB server tools
         elif btn_id == "btn-restart-adb":
             self.query_one(FooterBar).show_toast(t("toast_adb_restart_sent"))
@@ -1331,6 +1360,10 @@ class AndroidTuiApp(App):
     def _do_tcpip_worker(self) -> None:
         success, msg = self.adb.enable_tcpip_mode(5555)
         self.app.call_from_thread(self.query_one(FooterBar).show_toast, msg, not success)
+
+    def action_localsend_discovery(self) -> None:
+        """Opens LocalSend discovery & persistent connection modal."""
+        self.push_screen(LocalSendModal(self.localsend_discovery, self.localsend_manager))
 
     def action_show_help(self) -> None:
         self.push_screen(HelpModal())

@@ -40,6 +40,7 @@ class DisconnectedDashboard(VerticalScroll):
                     with Horizontal(classes="card-button-bar"):
                         yield Button(t("dash_btn_wifi_connect"), id="btn-wifi-connect", variant="primary")
                         yield Button(t("dash_btn_wifi_pair"), id="btn-wifi-pair")
+                        yield Button(t("dash_btn_localsend_scan"), id="btn-localsend-scan", variant="success")
 
             # Row 2: Dedicated Recent Devices Section (Wired & Wireless with selective removal)
             with Horizontal(classes="connection-options-grid", id="row-recent"):
@@ -93,6 +94,9 @@ class DisconnectedDashboard(VerticalScroll):
         self.query_one("#card-wifi-desc", Static).update(t("dash_card_wifi_desc"))
         self.query_one("#btn-wifi-connect", Button).label = t("dash_btn_wifi_connect")
         self.query_one("#btn-wifi-pair", Button).label = t("dash_btn_wifi_pair")
+        btn_ls = self.query("#btn-localsend-scan")
+        if btn_ls:
+            btn_ls.first().label = t("dash_btn_localsend_scan")
 
         # Card Recent
         self.query_one("#card-recent-title", Static).update(t("dash_card_recent_title"))
