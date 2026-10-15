@@ -1,7 +1,57 @@
-/* Disconnected Hero Dashboard */
+/* 3-Column Miller Columns Disconnected Dashboard */
 #disconnected-container {
     height: 1fr;
-    align-horizontal: center;
+    layout: horizontal;
+    padding: 0;
+}
+
+#disconnected-left-pane {
+    width: 25%;
+    height: 100%;
+    border: round #292e42;
+    background: #16161e;
+    padding: 0;
+}
+
+#disconnected-left-pane:focus-within {
+    border: round #7dcfff;
+}
+
+#disconnected-center-pane {
+    width: 45%;
+    height: 100%;
+    border: round #7dcfff;
+    background: #1a1b26;
+    padding: 0;
+}
+
+#disconnected-center-pane:focus-within {
+    border: round #7aa2f7;
+}
+
+#disconnected-right-pane {
+    width: 30%;
+    height: 100%;
+    border: round #3d59a1;
+    background: #16161e;
+    padding: 0;
+}
+
+#disconnected-right-pane:focus-within {
+    border: round #7dcfff;
+}
+
+.pane-title {
+    width: 100%;
+    height: 1;
+    padding: 0 1;
+    color: #7aa2f7;
+    text-style: bold;
+    background: #1f2335;
+}
+
+.disconnected-scroll {
+    height: 1fr;
     padding: 0 1;
     overflow-y: auto;
     overflow-x: hidden;
@@ -9,59 +59,54 @@
     scrollbar-color: #7dcfff #1a1b26;
 }
 
+/* Center Hero & Guides */
 #disconnected-hero {
-    width: 108;
-    max-width: 98%;
+    width: 100%;
     height: auto;
     border: round #7dcfff;
     background: #1f2335;
     padding: 0 1;
-    margin-bottom: 1;
+    margin-top: 1;
+    margin-bottom: 0;
 }
 
 #hero-title {
     text-align: center;
     text-style: bold;
     color: #7dcfff;
+    margin-top: 0;
     margin-bottom: 0;
 }
 
 #hero-subtitle {
     text-align: center;
+    text-style: bold;
     color: #f7768e;
     margin-bottom: 0;
 }
 
-.connection-options-grid {
-    layout: horizontal;
-    height: auto;
-    margin-top: 0;
-    margin-bottom: 0;
-}
-
-#row-recent {
-    margin-top: 0;
-    height: auto;
-}
-
-#row-tools {
-    margin-top: 0;
-    height: auto;
-    margin-bottom: 1;
-}
-
 .option-card {
-    width: 1fr;
+    width: 100%;
     height: auto;
     border: round #414868;
     background: #24283b;
     padding: 0 1;
-    margin: 0 1;
+    margin-top: 1;
+    margin-bottom: 0;
 }
 
 .option-card:hover {
     border: round #7dcfff;
     background: #292e42;
+}
+
+.guide-card {
+    border: round #3d59a1;
+    background: #1f2335;
+}
+
+.guide-card:hover {
+    border: round #7dcfff;
 }
 
 .card-title {
@@ -76,7 +121,7 @@
     height: auto;
 }
 
-/* Recent Devices: Adaptive height & scrollable */
+/* Recent Devices: Adaptive & scrollable */
 #card-recent {
     height: auto;
 }
@@ -95,6 +140,7 @@
 .recent-device-row {
     layout: horizontal;
     height: 3;
+    margin-top: 1;
     margin-bottom: 0;
     align: left middle;
 }
@@ -133,26 +179,29 @@
 .card-button-bar {
     layout: horizontal;
     align: center middle;
-    height: 3;
-    margin-top: 0;
+    height: auto;
+    margin-top: 1;
+    margin-bottom: 0;
 }
 
 .card-button-bar Button {
     margin: 0 1;
-    min-width: 14;
-    width: auto;
+    min-width: 8;
+    width: 1fr;
+    height: 3;
 }
 
 #recent-actions-bar {
     layout: horizontal;
     align: right middle;
-    height: 3;
-    margin-top: 0;
+    height: auto;
+    margin-top: 1;
+    margin-bottom: 0;
 }
 
 #recent-actions-bar Button {
-    min-width: 22;
-    width: auto;
+    min-width: 16;
+    width: 1fr;
     background: #414868;
     color: #c0caf5;
 }
@@ -177,4 +226,14 @@
 #card-tools-title {
     color: #bb9af7;
     text-style: bold;
+}
+
+#card-adb-info {
+    border: round #7aa2f7;
+    background: #1f2335;
+}
+
+#card-troubleshooting {
+    border: round #e0af68;
+    background: #1f2335;
 }
