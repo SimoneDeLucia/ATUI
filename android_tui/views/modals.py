@@ -26,12 +26,19 @@ ModalResult = TypeVar("ModalResult")
 class NavigableInput(TextualInput):
     """
     An Input that separates navigation mode from editing/typing mode.
-    - When not editing: ignores typing characters (preventing conflict with navigation / vim mode),
+    - If direct_typing is True (e.g. in WiFi pair/connect modals):
+      Allows immediate typing without pressing Enter first.
+      Pressing Enter submits the input (or enters editing mode if in vim navigation).
+      Pressing Esc deselects editing mode or closes the modal.
+      When '!' (vim mode) is activated on the modal, it falls back to requiring Enter to edit.
+    - When not editing (standard modal or vim mode active):
+      Ignores typing characters (preventing conflict with navigation / vim mode),
       Enter enters editing mode.
     - When editing: user types normally.
       Esc exits editing mode and restores arrow navigation (disabling vim toggle).
     """
     is_editing: bool = False
+    direct_typing: bool = False
 
     def on_blur(self) -> None:
         if self.is_editing:
@@ -39,23 +46,59 @@ class NavigableInput(TextualInput):
             self.remove_class("-editing")
 
     async def _on_key(self, event: events.Key) -> None:
-        if self.is_editing:
-            if event.key == "escape":
-                self.is_editing = False
-                self.remove_class("-editing")
-                # Reset vim toggle in parent modal if applicable
-                screen = self.screen
-                if hasattr(screen, "vim_nav_mode") and screen.vim_nav_mode:
-                    screen.vim_nav_mode = False
+        screen = self.screen
+        vim_active = getattr(screen, "vim_nav_mode", False)
+
+        # In direct_typing mode, we allow direct writing unless vim navigation mode is turned on via '!'
+        allow_direct = self.direct_typing and not vim_active
+
+        # If '!' is pressed in direct_typing mode (or not editing), toggle vim mode!
+        if event.key in ("exclamation_mark", "!") or event.character == "!":
+            if hasattr(screen, "vim_nav_mode"):
+                screen.vim_nav_mode = not screen.vim_nav_mode
+                if screen.vim_nav_mode:
+                    screen.add_class("-vim-mode")
+                    screen.notify(t("modal_vim_mode_on"), severity="information", timeout=2.0)
+                else:
                     screen.remove_class("-vim-mode")
                     screen.notify(t("modal_vim_mode_off"), severity="information", timeout=2.0)
+                if self.is_editing:
+                    self.is_editing = False
+                    self.remove_class("-editing")
                 event.prevent_default()
                 event.stop()
                 return
+
+        if self.is_editing or allow_direct:
+            if event.key == "escape":
+                if self.is_editing:
+                    self.is_editing = False
+                    self.remove_class("-editing")
+                    if vim_active:
+                        screen.vim_nav_mode = False
+                        screen.remove_class("-vim-mode")
+                        screen.notify(t("modal_vim_mode_off"), severity="information", timeout=2.0)
+                    event.prevent_default()
+                    event.stop()
+                    return
+
+                # In direct_typing mode (not editing mode), pressing escape closes the modal
+                if allow_direct:
+                    event.prevent_default()
+                    event.stop()
+                    screen.dismiss(getattr(screen, "dismiss_cancel_value", None))
+                    return
+
+            # In direct_typing mode, pressing Enter submits the input
+            if event.key == "enter" and allow_direct and not self.is_editing:
+                # Textual Input handles Enter by submitting
+                await super()._on_key(event)
+                return
+
             await super()._on_key(event)
             return
 
-        # NOT in editing mode:
+        # NOT in editing mode and direct typing is not active (standard modal or vim_active is True):
         if event.key == "enter":
             self.is_editing = True
             self.add_class("-editing")
@@ -87,11 +130,30 @@ class BaseNavigableModal(ModalScreen[ModalResult]):
     def on_key(self, event: events.Key) -> None:
         focused = self.focused
 
-        # If user is actively typing in a NavigableInput, do not intercept any keys!
-        if isinstance(focused, NavigableInput) and focused.is_editing:
+        # 1. Close modal with Escape (when not handled by an active editing input)
+        if event.key == "escape":
+            event.prevent_default()
+            event.stop()
+            self.dismiss(self.dismiss_cancel_value)
             return
 
-        # 1. Toggle Vim navigation mode with '!'
+        # If user is actively typing in a NavigableInput (either editing or direct_typing without vim mode), do not intercept!
+        if isinstance(focused, NavigableInput):
+            if focused.is_editing:
+                return
+            if focused.direct_typing and not self.vim_nav_mode:
+                # If '!' is pressed, toggle vim navigation mode
+                if event.key in ("exclamation_mark", "!") or event.character == "!":
+                    self.vim_nav_mode = True
+                    self.add_class("-vim-mode")
+                    self.notify(t("modal_vim_mode_on"), severity="information", timeout=2.0)
+                    event.prevent_default()
+                    event.stop()
+                    return
+                # Otherwise, let input receive the keystrokes directly!
+                return
+
+        # 2. Toggle Vim navigation mode with '!'
         if event.key in ("exclamation_mark", "!") or event.character == "!":
             self.vim_nav_mode = not self.vim_nav_mode
             if self.vim_nav_mode:
@@ -102,13 +164,6 @@ class BaseNavigableModal(ModalScreen[ModalResult]):
                 self.notify(t("modal_vim_mode_off"), severity="information", timeout=2.0)
             event.prevent_default()
             event.stop()
-            return
-
-        # 2. Close modal with Escape
-        if event.key == "escape":
-            event.prevent_default()
-            event.stop()
-            self.dismiss(self.dismiss_cancel_value)
             return
 
         # 3. Handle ListView navigation vs normal widget navigation
@@ -181,10 +236,15 @@ class WirelessConnectModal(BaseNavigableModal[Optional[str]]):
                 t("modal_wifi_connect_subtitle"),
                 classes="modal-subtitle",
             )
-            yield Input(placeholder="192.168.1.x:5555", id="input-wifi-addr")
+            inp = Input(placeholder="192.168.1.x:5555", id="input-wifi-addr")
+            inp.direct_typing = True
+            yield inp
             with Horizontal(classes="button-bar"):
                 yield Button(t("btn_connect"), id="btn-submit", variant="primary")
                 yield Button(t("btn_cancel"), id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#input-wifi-addr", Input).focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-submit":
@@ -208,12 +268,19 @@ class WirelessPairModal(BaseNavigableModal[Optional[tuple]]):
                 classes="modal-subtitle",
             )
             yield Static(t("modal_wifi_pair_addr_label"))
-            yield Input(placeholder="192.168.1.x:porta", id="input-pair-addr")
+            inp_addr = Input(placeholder="192.168.1.x:porta", id="input-pair-addr")
+            inp_addr.direct_typing = True
+            yield inp_addr
             yield Static(t("modal_wifi_pair_code_label"))
-            yield Input(placeholder="123456", id="input-pair-code")
+            inp_code = Input(placeholder="123456", id="input-pair-code")
+            inp_code.direct_typing = True
+            yield inp_code
             with Horizontal(classes="button-bar"):
                 yield Button(t("btn_pair"), id="btn-submit", variant="primary")
                 yield Button(t("btn_cancel"), id="btn-cancel")
+
+    def on_mount(self) -> None:
+        self.query_one("#input-pair-addr", Input).focus()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-submit":
