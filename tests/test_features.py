@@ -642,6 +642,92 @@ async def run_compatibility_suite():
         assert app.query_one(DisconnectedDashboard).display is True
         print("    Global shortcuts ('/', 'v', '?', 'l', 'f', 'r', 'c', 'R', 'h') verified!")
 
+        # 28. Test Direct Typing in WirelessConnectModal & WirelessPairModal (and Vim navigation toggle via '!')
+        print("[28] Testing Direct Typing in WirelessConnectModal & WirelessPairModal...")
+        from android_tui.views.modals import WirelessConnectModal, WirelessPairModal
+
+        # (a) WirelessConnectModal direct typing
+        conn_modal = WirelessConnectModal()
+        app.push_screen(conn_modal)
+        await pilot.pause()
+        inp_conn = conn_modal.query_one("#input-wifi-addr", NavigableInput)
+        inp_conn.focus()
+        await pilot.pause()
+
+        # Direct typing without pressing Enter first
+        await pilot.press("1", "9", "2", ".", "1", "6", "8", ".", "1", ".", "9", "9", ":", "5", "5", "5", "5")
+        await pilot.pause()
+        assert inp_conn.value == "192.168.1.99:5555", f"Direct typing failed: {inp_conn.value}"
+
+        # Esc closes modal directly
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not isinstance(app.screen, WirelessConnectModal)
+
+        # Reopen to test Vim navigation mode toggle with '!'
+        conn_modal2 = WirelessConnectModal()
+        app.push_screen(conn_modal2)
+        await pilot.pause()
+        inp_conn2 = conn_modal2.query_one("#input-wifi-addr", NavigableInput)
+        inp_conn2.focus()
+        await pilot.pause()
+
+        # Press '!' to switch to Vim navigation mode
+        await pilot.press("!")
+        await pilot.pause()
+        assert conn_modal2.vim_nav_mode is True
+
+        # Now typing characters does not modify input value directly
+        await pilot.press("a", "b", "c")
+        await pilot.pause()
+        assert inp_conn2.value == "", f"Typing in Vim mode without Enter leaked: {inp_conn2.value}"
+
+        # In vim mode, pressing Enter enters editing mode
+        await pilot.press("enter")
+        await pilot.pause()
+        assert inp_conn2.is_editing is True
+        await pilot.press("1", "0", ".", "0")
+        await pilot.pause()
+        assert inp_conn2.value == "10.0"
+
+        # Pressing Esc deselects editing and vim mode
+        await pilot.press("escape")
+        await pilot.pause()
+        assert inp_conn2.is_editing is False
+        assert conn_modal2.vim_nav_mode is False
+
+        # Pressing Esc again closes modal
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not isinstance(app.screen, WirelessConnectModal)
+
+        # (b) WirelessPairModal direct typing
+        pair_modal = WirelessPairModal()
+        app.push_screen(pair_modal)
+        await pilot.pause()
+        inp_pair_addr = pair_modal.query_one("#input-pair-addr", NavigableInput)
+        inp_pair_code = pair_modal.query_one("#input-pair-code", NavigableInput)
+        inp_pair_addr.focus()
+        await pilot.pause()
+
+        await pilot.press("1", "9", "2", ".", "1", "6", "8", ".", "1", ".", "5", ":", "3", "7", "0", "0", "0")
+        await pilot.pause()
+        assert inp_pair_addr.value == "192.168.1.5:37000"
+
+        # Tab to code field and direct type
+        inp_pair_code.focus()
+        await pilot.pause()
+        await pilot.press("1", "2", "3", "4", "5", "6")
+        await pilot.pause()
+        assert inp_pair_code.value == "123456"
+
+        # Press Esc to close
+        await pilot.press("escape")
+        await pilot.pause()
+        assert not isinstance(app.screen, WirelessPairModal)
+
+        print("    Direct typing in WiFi connect/pair modals and Vim mode toggle ('!') verified!")
+
         print("\n[SUCCESS] ALL INTEGRATION TESTS (ALL REQUIREMENTS) PASSED 100%!")
 
 
